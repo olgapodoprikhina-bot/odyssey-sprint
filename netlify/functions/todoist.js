@@ -7,7 +7,6 @@ const CORS_HEADERS = {
 };
 
 exports.handler = async (event) => {
-  // Handle CORS preflight
   if (event.httpMethod === "OPTIONS") {
     return { statusCode: 204, headers: CORS_HEADERS, body: "" };
   }
@@ -34,7 +33,7 @@ exports.handler = async (event) => {
       let data = "";
       res.on("data", (chunk) => (data += chunk));
       res.on("end", () => {
-        // 204 No Content (напр. close task) — повернути порожній успіх
+        // 204 No Content (close task)
         if (res.statusCode === 204) {
           resolve({
             statusCode: 200,
@@ -43,10 +42,21 @@ exports.handler = async (event) => {
           });
           return;
         }
+
+        // Новий Todoist API v1 повертає {results:[...], next_cursor:null}
+        // Розпаковуємо тут — index.html очікує просто масив
+        let normalized = data;
+        try {
+          const parsed = JSON.parse(data);
+          if (parsed && Array.isArray(parsed.results)) {
+            normalized = JSON.stringify(parsed.results);
+          }
+        } catch {}
+
         resolve({
           statusCode: res.statusCode,
           headers: { "Content-Type": "application/json", ...CORS_HEADERS },
-          body: data || JSON.stringify({}),
+          body: normalized || "[]",
         });
       });
     });
