@@ -1,5 +1,0 @@
-{
-  "rewrites": [
-    { "source": "/api/todoist", "destination": "/api/todoist.js" }
-  ]
-}
