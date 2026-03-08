@@ -20,15 +20,22 @@ module.exports = async (req, res) => {
     return;
   }
 
-  // path: /databases/:id/query  або  /pages  або  /pages/:id
-  const path = req.query?.path || "/users/me";
+  // Читаємо path з повного URL щоб уникнути проблем з Vercel rewrite + query parsing
+  let notionPath = "/users/me";
+  try {
+    const url = new URL(req.url, "https://placeholder.com");
+    notionPath = url.searchParams.get("path") || "/users/me";
+  } catch {
+    notionPath = req.query?.path || "/users/me";
+  }
+
   const method = req.method === "POST" || req.method === "PATCH" ? req.method : "GET";
   const body = (method === "POST" || method === "PATCH") ? JSON.stringify(req.body) : null;
 
   return new Promise((resolve) => {
     const options = {
       hostname: "api.notion.com",
-      path: "/v1" + path,
+      path: "/v1" + notionPath,
       method,
       headers: {
         Authorization: "Bearer " + token,
