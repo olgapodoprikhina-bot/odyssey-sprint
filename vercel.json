@@ -1,0 +1,6 @@
+{
+  "rewrites": [
+    { "source": "/api/todoist", "destination": "/api/todoist.js" },
+    { "source": "/api/notion",  "destination": "/api/notion.js"  }
+  ]
+}
