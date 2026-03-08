@@ -11,16 +11,12 @@ module.exports = async (req, res) => {
     res.status(204).set(CORS_HEADERS).end();
     return;
   }
-
   Object.entries(CORS_HEADERS).forEach(([k, v]) => res.setHeader(k, v));
 
   const token = req.headers["x-notion-token"];
-  if (!token) {
-    res.status(401).json({ error: "No token" });
-    return;
-  }
+  if (!token) { res.status(401).json({ error: "No token" }); return; }
 
-  // Читаємо path з повного URL щоб уникнути проблем з Vercel rewrite + query parsing
+  // Читаємо path з query
   let notionPath = "/users/me";
   try {
     const url = new URL(req.url, "https://placeholder.com");
@@ -29,8 +25,13 @@ module.exports = async (req, res) => {
     notionPath = req.query?.path || "/users/me";
   }
 
-  const method = req.method === "POST" || req.method === "PATCH" ? req.method : "GET";
-  const body = (method === "POST" || method === "PATCH") ? JSON.stringify(req.body) : null;
+  const method = (req.method === "POST" || req.method === "PATCH") ? req.method : "GET";
+  
+  // Серіалізуємо тіло
+  let bodyStr = null;
+  if (method === "POST" || method === "PATCH") {
+    bodyStr = typeof req.body === "string" ? req.body : JSON.stringify(req.body || {});
+  }
 
   return new Promise((resolve) => {
     const options = {
@@ -41,6 +42,7 @@ module.exports = async (req, res) => {
         Authorization: "Bearer " + token,
         "Content-Type": "application/json",
         "Notion-Version": "2022-06-28",
+        ...(bodyStr ? { "Content-Length": Buffer.byteLength(bodyStr) } : {}),
       },
     };
 
@@ -60,7 +62,7 @@ module.exports = async (req, res) => {
       resolve();
     });
 
-    if (body) request.write(body);
+    if (bodyStr) request.write(bodyStr);
     request.end();
   });
 };
