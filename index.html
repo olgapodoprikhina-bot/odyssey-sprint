@@ -607,6 +607,18 @@ function App(){
     return allTasks;
   };
 
+  // Завантажити секції проекту і повернути map {sectionId: sectionName}
+  const fetchSectionsMap=async(token,projectId)=>{
+    try{
+      const res=await tdFetch("/sections?project_id="+projectId,token,"GET");
+      if(!res.ok)return{};
+      const sections=await res.json();
+      const map={};
+      sections.forEach(s=>{map[s.id]=s.name;});
+      return map;
+    }catch{return{};}
+  };
+
   const syncFromTodoist=async(projId)=>{
     const token=g.todoist?.token||tdToken;
     const projTdId=g.todoist?.projects?.[projId]||tdProjects[projId];
@@ -617,6 +629,7 @@ function App(){
       try{const pr=await tdFetch("/projects",token,"GET");if(pr.ok)allProjects=await pr.json();}catch{}
 
       const tasks=await fetchAllTasksForProject(token,projTdId,allProjects);
+      const sectionsMap=await fetchSectionsMap(token,projTdId);
       const wi=g.currentWeek-1;
 
       // Читаємо поточний стейт ПЕРЕД upd — щоб мати актуальний список
@@ -635,6 +648,7 @@ function App(){
           done:false,
           todoistId:t.id,
           todoistLabels:t.labels||[],
+          todoistSection:t.section_id?sectionsMap[t.section_id]||null:null,
         }));
 
       // Оновити todoistId для задач які вже є по імені але без id
@@ -667,10 +681,12 @@ function App(){
 
     // Завантажити задачі для всіх проектів паралельно
     const tasksByProj={};
+    const sectionsByProj={};
     for(const p of PROJECTS){
       const projTdId=g.todoist?.projects?.[p.id]||tdProjects[p.id];
       if(!projTdId)continue;
       try{tasksByProj[p.id]=await fetchAllTasksForProject(token,projTdId,allProjects);}catch{}
+      sectionsByProj[p.id]=await fetchSectionsMap(token,projTdId);
       await new Promise(r=>setTimeout(r,150));
     }
 
@@ -703,6 +719,7 @@ function App(){
             name:t.content,
             zone:t.priority===4?"red":t.priority===3?"orange":"green",
             done:false,todoistId:t.id,todoistLabels:t.labels||[],
+            todoistSection:t.section_id?(sectionsByProj[p.id]||{})[t.section_id]||null:null,
           }));
 
         totalAdded+=newQ.length;
@@ -1084,6 +1101,7 @@ function App(){
           </div>
         </div>
         {q.notionPageId&&q.notionProjName&&<div style={{fontSize:10,color:"#666",marginTop:2,marginBottom:1}}>⬛ {q.notionProjName}</div>}
+        {!q.notionPageId&&q.todoistSection&&<div style={{fontSize:10,color:"#888",marginTop:2,marginBottom:1}}>📂 {q.todoistSection}</div>}
         {!q.notionPageId&&q.todoistLabels?.length>0&&<div style={{display:"flex",gap:4,flexWrap:"wrap",marginTop:2,marginBottom:1}}>
           {q.todoistLabels.map((lb,i)=><span key={i} style={{fontSize:9,background:"rgba(232,68,74,0.1)",border:"1px solid rgba(232,68,74,0.25)",borderRadius:8,padding:"1px 6px",color:"#e8444a"}}>🏷 {lb}</span>)}
         </div>}
