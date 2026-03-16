@@ -702,7 +702,7 @@ function App(){
             id:Date.now()+Math.random(),
             name:t.content,
             zone:t.priority===4?"red":t.priority===3?"orange":"green",
-            done:false,todoistId:t.id,
+            done:false,todoistId:t.id,todoistLabels:t.labels||[],
           }));
 
         totalAdded+=newQ.length;
@@ -756,7 +756,7 @@ function App(){
             name:t.content,
             zone:t.priority===4?"red":t.priority===3?"orange":"green",
             done:false,
-            todoistId:t.id,
+            todoistId:t.id,todoistLabels:t.labels||[],
           }));
 
         pw[wi]={...pw[wi],quests:[...filtered,...newQ]};
