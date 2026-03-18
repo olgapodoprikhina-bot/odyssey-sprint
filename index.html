@@ -1087,8 +1087,10 @@ function App(){
     const zone=ZONES.find(z=>z.id===q.zone);
     const nState=notionQSending[q.id];
     const [showNPicker,setShowNPicker]=React.useState(false);
+    const [nSearch,setNSearch]=React.useState("");
     // Список проектів Notion з налаштувань
     const notionProjs=(g.notion?.projList||[]).filter(x=>x.id&&x.name);
+    const filteredProjs=nSearch.trim()?notionProjs.filter(x=>x.name.toLowerCase().includes(nSearch.toLowerCase())):notionProjs;
     const hasProjs=notionProjs.length>0;
     return <div style={{display:"flex",alignItems:"center",gap:8,background:q.done?"rgba(74,184,112,0.07)":"rgba(255,255,255,0.04)",borderRadius:10,padding:"10px 12px",border:"1px solid "+(q.done?"rgba(74,184,112,0.3)":zone?.color+"33"),marginBottom:6,position:"relative"}}>
       <div style={{flex:1,minWidth:0}}>
@@ -1112,14 +1114,24 @@ function App(){
           style={{fontSize:10,color:nState==="error"?"#e05555":"#888",background:"rgba(255,255,255,0.05)",border:"1px solid #252a35",borderRadius:10,padding:"3px 7px",whiteSpace:"nowrap",opacity:nState==="sending"?0.5:1}}>
           {nState==="sending"?"⏳":"→N"}
         </button>
-        {showNPicker&&<div style={{position:"absolute",right:0,top:"calc(100% + 4px)",background:"#161920",border:"1px solid #252a35",borderRadius:10,padding:"6px",zIndex:999,minWidth:120,boxShadow:"0 4px 20px #0008"}}>
+        {showNPicker&&<div style={{position:"absolute",right:0,top:"calc(100% + 4px)",background:"#161920",border:"1px solid #252a35",borderRadius:10,padding:"6px",zIndex:999,minWidth:180,boxShadow:"0 4px 20px #0008"}}>
           <div style={{fontSize:9,color:"#444",fontFamily:"monospace",letterSpacing:"0.1em",padding:"2px 6px 6px"}}>ПРОЕКТ</div>
-          {notionProjs.map((np,i)=><button key={i} onClick={()=>{setShowNPicker(false);onNotion(np.id,np.name);}}
-            style={{display:"block",width:"100%",textAlign:"left",background:"rgba(255,255,255,0.03)",border:"1px solid #2a2f3a",borderRadius:7,padding:"5px 8px",marginBottom:4,color:"#f0ece4",fontSize:11}}>
-            {np.name}
-          </button>)}
-          <button onClick={()=>{setShowNPicker(false);onNotion(null);}}
-            style={{display:"block",width:"100%",textAlign:"left",background:"transparent",border:"none",padding:"4px 8px",color:"#444",fontSize:10}}>
+          <input
+            autoFocus
+            value={nSearch}
+            onChange={e=>setNSearch(e.target.value)}
+            onClick={e=>e.stopPropagation()}
+            placeholder="Пошук..."
+            style={{width:"100%",background:"rgba(255,255,255,0.06)",border:"1px solid #2a2f3a",borderRadius:7,padding:"5px 8px",color:"#f0ece4",fontSize:11,fontFamily:"inherit",outline:"none",marginBottom:5}}/>
+          <div style={{maxHeight:200,overflowY:"auto"}}>
+            {filteredProjs.length===0&&<div style={{fontSize:11,color:"#444",padding:"6px 8px"}}>Не знайдено</div>}
+            {filteredProjs.map((np,i)=><button key={i} onClick={()=>{setShowNPicker(false);setNSearch("");onNotion(np.id,np.name);}}
+              style={{display:"block",width:"100%",textAlign:"left",background:"rgba(255,255,255,0.03)",border:"1px solid #2a2f3a",borderRadius:7,padding:"5px 8px",marginBottom:4,color:"#f0ece4",fontSize:11}}>
+              {np.name}
+            </button>)}
+          </div>
+          <button onClick={()=>{setShowNPicker(false);setNSearch("");onNotion(null);}}
+            style={{display:"block",width:"100%",textAlign:"left",background:"transparent",border:"none",padding:"4px 8px",color:"#444",fontSize:10,marginTop:2}}>
             без прив'язки ·
           </button>
         </div>}
