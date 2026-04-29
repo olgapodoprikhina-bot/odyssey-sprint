@@ -9,6 +9,46 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0d0f14">
+<script type="module" id="firebase-init">
+  import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+  import { getFirestore, doc, setDoc, getDoc, onSnapshot }
+    from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyAuC3AqNmYOR1hSD0WkN5V22vC7RIHzI6A",
+    authDomain: "odyssey-sprint.firebaseapp.com",
+    projectId: "odyssey-sprint",
+    storageBucket: "odyssey-sprint.firebasestorage.app",
+    messagingSenderId: "952634288843",
+    appId: "1:952634288843:web:caf628e79a73f31c92c94e"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+  const USER_DOC = 'users/olga';
+
+  window.fbSave = async function(data) {
+    try {
+      await setDoc(doc(db, USER_DOC), data, { merge: true });
+    } catch(e) { console.warn('fbSave error:', e); }
+  };
+
+  window.fbLoad = async function() {
+    try {
+      const snap = await getDoc(doc(db, USER_DOC));
+      return snap.exists() ? snap.data() : null;
+    } catch(e) { console.warn('fbLoad error:', e); return null; }
+  };
+
+  window.fbSubscribe = function(onChange) {
+    return onSnapshot(doc(db, USER_DOC), snap => {
+      if(snap.exists()) onChange(snap.data());
+    }, e => console.warn('fbSubscribe error:', e));
+  };
+
+  console.log('Firebase initialized: odyssey-sprint');
+</script>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
@@ -416,9 +456,50 @@ function App(){
       const f2=fresh();f2.lastActiveDate=today;setG(f2);save(f2);
     }}catch{}
     setLoaded(true);
+
+    // Firebase: завантажити якщо новіші, підписатись на зміни
+    let unsub=null;
+    (async()=>{
+      if(!window.fbLoad||!window.fbSubscribe) return;
+      try{
+        const remote=await window.fbLoad();
+        if(remote&&remote[SAVE_KEY]&&remote._updatedAt){
+          const localRaw=localStorage.getItem(SAVE_KEY);
+          const localTs=localRaw?JSON.parse(localRaw)?._updatedAt||0:0;
+          if(remote._updatedAt>localTs){
+            const s=JSON.parse(remote[SAVE_KEY]);
+            localStorage.setItem(SAVE_KEY,remote[SAVE_KEY]);
+            setG(s);
+            console.log('Firebase: loaded newer data from cloud');
+          }
+        }
+      }catch(e){console.warn('Firebase load error:',e);}
+
+      // Підписка на live-зміни (інший пристрій)
+      let lastApplied=Date.now();
+      unsub=window.fbSubscribe(remote=>{
+        if(!remote||!remote[SAVE_KEY]) return;
+        // Ігноруємо власні зміни (< 3 сек)
+        if(remote._updatedAt&&remote._updatedAt<lastApplied+3000) return;
+        try{
+          const s=JSON.parse(remote[SAVE_KEY]);
+          localStorage.setItem(SAVE_KEY,remote[SAVE_KEY]);
+          setG(s);
+          lastApplied=Date.now();
+          console.log('Firebase: synced from another device');
+        }catch{}
+      });
+    })();
+    return ()=>{ if(unsub) unsub(); };
   },[]);
 
-  const save=useCallback(s=>{try{localStorage.setItem(SAVE_KEY,JSON.stringify(s));}catch{}},[]);
+  const save=useCallback(s=>{
+    try{
+      const json=JSON.stringify(s);
+      localStorage.setItem(SAVE_KEY,json);
+      if(window.fbSave) window.fbSave({[SAVE_KEY]:json,_updatedAt:Date.now()}).catch(()=>{});
+    }catch{}
+  },[]);
   const upd=useCallback(p=>{setG(prev=>{const next=typeof p==="function"?p(prev):{...prev,...p};save(next);return next;});},[save]);
   const toast_=(msg,color="#c8a840")=>{if(tRef.current)clearTimeout(tRef.current);setToast({msg,color});tRef.current=setTimeout(()=>setToast(null),2500);};
 
