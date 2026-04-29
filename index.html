@@ -1215,12 +1215,15 @@ function App(){
   if(!loaded)return React.createElement("div",{style:{height:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#0d0f14",color:"#c8a840",fontFamily:"monospace",fontSize:13}},"...");
 
   const dc=g.dailyQuests.filter(q=>q.done).length,tc=g.dailyQuests.length;
-  const lv=Math.floor(g.mana/5000)+1,xp=Math.min((g.mana%5000)/5000*100,100);
   const mo=MODES.find(m=>m.id===g.mode);
   const pct=revTotal>0?Math.round(revDone/revTotal*100):0,gr=GRADE(pct);
   const cw=g.currentWeek;
   const archive=g.archive||[];
   const totalManaEver=archive.reduce((s,a)=>s+(a.manaTotal||0),0)+g.mana;
+  // Рівень рахується від ЗАГАЛЬНОЇ зібраної мани (не відкочується при витратах)
+  const LV_STEP=5000;
+  const lv=Math.floor(totalManaEver/LV_STEP)+1;
+  const xp=Math.min((totalManaEver%LV_STEP)/LV_STEP*100,100);
   const totalSprints=archive.length+(g.sprintStarted?1:0);
 
   // ── Розрахунок прогресу часу ──
