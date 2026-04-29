@@ -98,6 +98,16 @@ const MICRO=[
   {emoji:"🧘",name:"15 хв тиші",mana:30},{emoji:"🧹",name:"Прибрати 1 річ",mana:30},
   {emoji:"📝",name:"Написати план на завтра",mana:30},{emoji:"🚶",name:"5 хв надворі",mana:30},
 ];
+const FLOW=[
+  {id:"f1",emoji:"🖥️",name:"Повтикати в ноут без мети",spoons:1},
+  {id:"f2",emoji:"🧵",name:"Вишивка",spoons:2},
+  {id:"f3",emoji:"📺",name:"Той самий серіал",spoons:2},
+  {id:"f4",emoji:"🎮",name:"Програмування гри зі мною",spoons:2},
+  {id:"f5",emoji:"📊",name:"Таблиці / схеми в Notion",spoons:2},
+  {id:"f6",emoji:"🎨",name:"Малювати що хочу",spoons:2},
+  {id:"f7",emoji:"🎧",name:"Цікава лекція",spoons:1},
+  {id:"f8",emoji:"🧸",name:"Ліпити з пластиліну / глини",spoons:2},
+];
 const SHOP=[
   {id:1, emoji:"☕",name:"Кава / солодке",cost:1250,tier:"micro"},
   {id:2, emoji:"📺",name:"1 епізод серіалу",cost:1500,tier:"micro"},
@@ -211,7 +221,7 @@ const fresh=()=>({
   mana:0,energy:null,mode:null,bbValue:"",
   sprintStarted:false,currentWeek:1,sprintNum:1,sprintStartDate:null,weekStartDate:null,
   projects:{A:freshProject("A"),B:freshProject("B"),C:freshProject("C"),D:freshProject("D")},
-  dailyQuests:[],microDone:[],purchases:[],
+  dailyQuests:[],microDone:[],flowDone:[],purchases:[],
   lastActiveDate:null, // "YYYY-MM-DD"
   yesterdaySummary:null, // {date, manaEarned, questsDone, habitsDone}
   habits:{
@@ -401,6 +411,7 @@ function App(){
       if(!s.weekReflections){s.weekReflections=[{},{},{}];}
       if(!s.spoons){s.spoons={current:10,max:10,lastDate:null};}
       if(!s.carryoverPool){s.carryoverPool=[];}
+      if(!s.flowDone){s.flowDone=[];}
       // Міграція: видалити задачі що починаються з * (категорії Todoist)
       if(s.projects){
         let changed=false;
@@ -607,6 +618,14 @@ function App(){
     toast_("+"+q.mana+" мани ✨","#c8a840");
   };
   const doMicro=m=>{if(g.microDone.includes(m.name))return;upd(p=>({...p,mana:p.mana+m.mana,microDone:[...p.microDone,m.name]}));toast_(m.emoji+" +"+m.mana+" мани!","#4ab870");};
+  const doFlow=f=>{
+    if((g.flowDone||[]).includes(f.id))return;
+    const cur=g.spoons?.current??10;
+    const max=g.spoons?.max??10;
+    const next=Math.min(max,cur+f.spoons);
+    upd(p=>({...p,spoons:{...p.spoons,current:next},flowDone:[...(p.flowDone||[]),f.id]}));
+    toast_(f.emoji+" +"+f.spoons+" 🫘 відновлено!","#4a8fd4");
+  };
   const doneHabit=hid=>{
     if(g.dailyHabits.includes(hid))return;
     const h=HABITS.find(x=>x.id===hid);
@@ -1152,7 +1171,7 @@ function App(){
         sprintNum:(prev.sprintNum||1)+1,
         projects:newProjects,
         carryoverPool:[], // очищаємо після переносу
-        dailyQuests:[],microDone:[],
+        dailyQuests:[],microDone:[],flowDone:[],
         energy:null,mode:null,bbValue:"",
       };
     });
@@ -1912,7 +1931,7 @@ function App(){
       </div>}
 
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-        {[{e:"🌅",l:"Ранковий ритуал",d:"Введи Body Battery",sc:"morning"},{e:"📋",l:"Квести сьогодні",d:tc?dc+"/"+tc+" виконано":"Обрати з тижня",sc:"quests"},{e:"🆘",l:"Мікро-режим",d:g.microDone.length+"/8",sc:"micro"},{e:"🛒",l:"Крамниця",d:g.mana+" мани",sc:"shop"}].map(q=><button key={q.sc} onClick={()=>setScreen(q.sc)} style={{background:"rgba(255,255,255,0.03)",border:"1px solid #252a35",borderRadius:12,padding:"15px 12px",textAlign:"left",color:"#f0ece4",display:"flex",flexDirection:"column",gap:4}}>
+        {[{e:"🌅",l:"Ранковий ритуал",d:"Введи Body Battery",sc:"morning"},{e:"📋",l:"Квести сьогодні",d:tc?dc+"/"+tc+" виконано":"Обрати з тижня",sc:"quests"},{e:"🆘",l:"Мікро-режим",d:g.microDone.length+"/8",sc:"micro"},{e:"🌊",l:"Потік",d:(g.flowDone||[]).length+"/"+FLOW.length,sc:"flow"},{e:"🛒",l:"Крамниця",d:g.mana+" мани",sc:"shop"}].map(q=><button key={q.sc} onClick={()=>setScreen(q.sc)} style={{background:"rgba(255,255,255,0.03)",border:"1px solid #252a35",borderRadius:12,padding:"15px 12px",textAlign:"left",color:"#f0ece4",display:"flex",flexDirection:"column",gap:4}}>
           <span style={{fontSize:22}}>{q.e}</span><span style={{fontWeight:700,fontSize:14}}>{q.l}</span><span style={{fontSize:11,color:"#555"}}>{q.d}</span>
         </button>)}
       </div>
@@ -3027,6 +3046,33 @@ function App(){
         </button>;})}
       </div>
       {g.microDone.length>=3&&<div style={S.ok}>🎉 День виконано! Ти зробила головне.</div>}
+    </div>}
+
+    {/* ════════════ FLOW ════════════ */}
+    {screen==="flow"&&<div style={S.scr} className="fu">
+      <div style={S.ttl}>🌊 Потік</div>
+      <div style={{background:"rgba(74,138,212,0.1)",border:"1px solid rgba(74,138,212,0.3)",borderRadius:8,padding:"12px 14px",color:"#4a8fd4",fontSize:13,lineHeight:1.6}}>
+        Дії без зобов'язань і наслідків.<br/>
+        <b>Не робота. Не марнування часу. Відновлення.</b><br/>
+        <span style={{color:"#555",fontSize:12}}>Кожна дія повертає 🫘 фасолини</span>
+      </div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <div style={{fontSize:13,color:"#666"}}>Сьогодні</div>
+        <div style={{fontFamily:"monospace",fontSize:13,color:"#4a8fd4"}}>{(g.flowDone||[]).length}/{FLOW.length} · +{FLOW.filter(f=>(g.flowDone||[]).includes(f.id)).reduce((a,f)=>a+f.spoons,0)} 🫘</div>
+      </div>
+      <div style={{height:4,background:"#1a1a1a",borderRadius:2,overflow:"hidden"}}>
+        <div style={{height:"100%",width:((g.flowDone||[]).length/FLOW.length*100)+"%",background:"#4a8fd4",borderRadius:2,transition:"width 0.4s"}}/>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+        {FLOW.map(f=>{const done=(g.flowDone||[]).includes(f.id);return<button key={f.id} onClick={()=>doFlow(f)} disabled={done}
+          style={{borderRadius:12,border:"1px solid "+(done?"rgba(74,138,212,0.4)":"#252a35"),padding:"15px 10px",textAlign:"center",
+          background:done?"rgba(74,138,212,0.1)":"rgba(255,255,255,0.03)",color:"#f0ece4",opacity:done?0.6:1}}>
+          <div style={{fontSize:27,marginBottom:5}}>{f.emoji}</div>
+          <div style={{fontSize:12,fontWeight:600,marginBottom:3}}>{f.name}</div>
+          <div style={{fontSize:12,fontFamily:"monospace",color:done?"#4a8fd4":"#888"}}>{done?"✓":"+"+f.spoons+" 🫘"}</div>
+        </button>;})}
+      </div>
+      {(g.flowDone||[]).length>=3&&<div style={{...S.ok,background:"rgba(74,138,212,0.15)",border:"1px solid rgba(74,138,212,0.4)",color:"#4a8fd4"}}>🌊 Добре відновилась сьогодні!</div>}
     </div>}
 
     {/* ════════════ SHOP ════════════ */}
