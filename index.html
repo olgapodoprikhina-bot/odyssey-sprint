@@ -221,7 +221,7 @@ const fresh=()=>({
   mana:0,energy:null,mode:null,bbValue:"",
   sprintStarted:false,currentWeek:1,sprintNum:1,sprintStartDate:null,weekStartDate:null,
   projects:{A:freshProject("A"),B:freshProject("B"),C:freshProject("C"),D:freshProject("D")},
-  dailyQuests:[],microDone:[],flowDone:[],purchases:[],
+  dailyQuests:[],microDone:[],flowDone:[],purchases:[],dayPhase:"flow",
   lastActiveDate:null, // "YYYY-MM-DD"
   yesterdaySummary:null, // {date, manaEarned, questsDone, habitsDone}
   habits:{
@@ -412,6 +412,7 @@ function App(){
       if(!s.spoons){s.spoons={current:10,max:10,lastDate:null};}
       if(!s.carryoverPool){s.carryoverPool=[];}
       if(!s.flowDone){s.flowDone=[];}
+      if(!s.dayPhase){s.dayPhase="flow";}
       // Міграція: видалити задачі що починаються з * (категорії Todoist)
       if(s.projects){
         let changed=false;
@@ -1171,7 +1172,7 @@ function App(){
         sprintNum:(prev.sprintNum||1)+1,
         projects:newProjects,
         carryoverPool:[], // очищаємо після переносу
-        dailyQuests:[],microDone:[],flowDone:[],
+        dailyQuests:[],microDone:[],flowDone:[],dayPhase:"flow",
         energy:null,mode:null,bbValue:"",
       };
     });
@@ -1929,6 +1930,55 @@ function App(){
           <div style={{fontSize:9,color:"#444",marginTop:2,fontFamily:"monospace",textTransform:"uppercase",letterSpacing:"0.08em"}}>{s.label}</div>
         </div>)}
       </div>}
+
+      {/* ══ ПОРЯДОК ДНЯ ══ */}
+      {(()=>{
+        const ph=g.dayPhase||"flow";
+        const flowDone=(g.flowDone||[]).length>0;
+        const workDone=(g.dailyQuests||[]).some(q=>q.done);
+        const phases=[
+          {id:"flow", e:"🌊", l:"Потік", hint:"Спочатку — для себе", sc:"flow",
+           done:flowDone, active:ph==="flow"},
+          {id:"work", e:"⚡", l:"Робота", hint:"Шити · моделювати · фріланс", sc:"quests",
+           done:workDone, active:ph==="work"},
+          {id:"buffer",e:"☁️", l:"Буфер", hint:"Що вийде", sc:null,
+           done:ph==="done"||ph==="buffer"&&workDone, active:ph==="buffer"},
+        ];
+        return<div style={{background:"rgba(255,255,255,0.02)",border:"1px solid #1e2230",borderRadius:12,padding:"14px 16px"}}>
+          <div style={{fontSize:10,color:"#444",fontFamily:"monospace",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:12}}>Порядок дня</div>
+          <div style={{display:"flex",alignItems:"center",gap:0}}>
+            {phases.map((p,i)=><React.Fragment key={p.id}>
+              <button onClick={()=>{
+                if(p.sc) setScreen(p.sc);
+                upd(prev=>({...prev,dayPhase:p.id}));
+              }} style={{flex:1,background:p.active?"rgba(200,168,64,0.12)":p.done?"rgba(74,184,112,0.07)":"transparent",
+                border:"1px solid "+(p.active?"rgba(200,168,64,0.4)":p.done?"rgba(74,184,112,0.3)":"#1e2230"),
+                borderRadius:8,padding:"10px 6px",textAlign:"center",color:p.active?"#c8a840":p.done?"#4ab870":"#555",cursor:"pointer"}}>
+                <div style={{fontSize:20,marginBottom:3}}>{p.done?"✓":p.e}</div>
+                <div style={{fontSize:11,fontWeight:700}}>{p.l}</div>
+                <div style={{fontSize:9,color:p.active?"#886830":p.done?"#2a6040":"#333",marginTop:2,lineHeight:1.3}}>{p.hint}</div>
+              </button>
+              {i<2&&<div style={{color:"#2a2a2a",fontSize:16,padding:"0 4px",flexShrink:0}}>→</div>}
+            </React.Fragment>)}
+          </div>
+          {ph==="flow"&&!flowDone&&<div style={{marginTop:10,fontSize:12,color:"#555",textAlign:"center"}}>
+            Відміть хоч одну flow-активність — і з'явиться кнопка "Готова до роботи"
+          </div>}
+          {ph==="flow"&&flowDone&&<button onClick={()=>upd(p=>({...p,dayPhase:"work"}))}
+            style={{marginTop:10,width:"100%",background:"rgba(200,168,64,0.15)",border:"1px solid rgba(200,168,64,0.4)",
+            borderRadius:8,padding:"10px",color:"#c8a840",fontSize:13,fontWeight:700,cursor:"pointer"}}>
+            ⚡ Готова до роботи →
+          </button>}
+          {ph==="work"&&workDone&&<button onClick={()=>upd(p=>({...p,dayPhase:"buffer"}))}
+            style={{marginTop:10,width:"100%",background:"rgba(74,184,112,0.1)",border:"1px solid rgba(74,184,112,0.3)",
+            borderRadius:8,padding:"10px",color:"#4ab870",fontSize:13,fontWeight:700,cursor:"pointer"}}>
+            ☁️ Зробила! Тепер буфер →
+          </button>}
+          {ph==="buffer"&&<div style={{marginTop:10,fontSize:12,color:"#4ab870",textAlign:"center"}}>
+            🌿 Вільний час. Без зобов'язань.
+          </div>}
+        </div>;
+      })()}
 
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
         {[{e:"🌅",l:"Ранковий ритуал",d:"Введи Body Battery",sc:"morning"},{e:"📋",l:"Квести сьогодні",d:tc?dc+"/"+tc+" виконано":"Обрати з тижня",sc:"quests"},{e:"🆘",l:"Мікро-режим",d:g.microDone.length+"/8",sc:"micro"},{e:"🌊",l:"Потік",d:(g.flowDone||[]).length+"/"+FLOW.length,sc:"flow"},{e:"🛒",l:"Крамниця",d:g.mana+" мани",sc:"shop"}].map(q=><button key={q.sc} onClick={()=>setScreen(q.sc)} style={{background:"rgba(255,255,255,0.03)",border:"1px solid #252a35",borderRadius:12,padding:"15px 12px",textAlign:"left",color:"#f0ece4",display:"flex",flexDirection:"column",gap:4}}>
