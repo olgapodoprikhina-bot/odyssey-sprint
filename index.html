@@ -379,6 +379,8 @@ function App(){
   // Quests grouping
   const [questsGroupBy,setQuestsGroupBy]=useState("none"); // "none" | "notion" | "proj"
   // History
+  const [showFlowCheck,setShowFlowCheck]=useState(false);
+  const [flowSpoonsInput,setFlowSpoonsInput]=useState(null); // 1-10
   const [histOpen,setHistOpen]=useState(null); // index of expanded archive entry
   const tRef=useRef(null);
   // Ritual timer
@@ -1577,6 +1579,38 @@ function App(){
       </div>
     </div>}
 
+    {/* ── FlowCheck modal ── */}
+    {showFlowCheck&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.92)",zIndex:9998,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+      <div style={{background:"#161921",border:"1px solid #c8a840",borderRadius:16,padding:"24px 20px",maxWidth:340,width:"100%"}}>
+        <div style={{fontFamily:"monospace",fontSize:9,letterSpacing:"0.2em",color:"#c8a840",textTransform:"uppercase",marginBottom:10}}>🌊 Перехід у Потік</div>
+        <div style={{fontSize:16,fontWeight:700,marginBottom:6}}>Як себе почуваю зараз?</div>
+        <div style={{fontSize:12,color:"#555",marginBottom:18,lineHeight:1.5}}>Встанови фасолини за поточним відчуттям — після роботи</div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:6,marginBottom:18}}>
+          {[1,2,3,4,5,6,7,8,9,10].map(n=><button key={n} onClick={()=>setFlowSpoonsInput(n)}
+            style={{padding:"12px 4px",borderRadius:10,border:"2px solid "+(flowSpoonsInput===n?"#c8a840":"#252a35"),background:flowSpoonsInput===n?"rgba(200,168,64,0.15)":"rgba(255,255,255,0.03)",
+            color:flowSpoonsInput===n?"#c8a840":"#555",fontSize:16,fontWeight:700,cursor:"pointer",transition:"all 0.15s"}}>
+            {n}
+          </button>)}
+        </div>
+        {flowSpoonsInput&&<div style={{background:"rgba(200,168,64,0.08)",border:"1px solid rgba(200,168,64,0.25)",borderRadius:8,padding:"10px 12px",marginBottom:14,fontSize:12,color:"#888",textAlign:"center",lineHeight:1.5}}>
+          {flowSpoonsInput<=3?"😔 Мало енергії — обери легкі flow-активності":flowSpoonsInput<=6?"😐 Середньо — відновлення допоможе":"😊 Добре! Насолоджуйся Потоком"}
+        </div>}
+        <div style={{display:"flex",gap:10}}>
+          <button onClick={()=>setShowFlowCheck(false)} style={{flex:1,background:"transparent",border:"1px solid #333",borderRadius:8,padding:"11px",color:"#666",fontSize:13}}>Скасувати</button>
+          <button disabled={!flowSpoonsInput} onClick={()=>{
+            const sp=flowSpoonsInput;
+            const mx=g.spoons?.max??10;
+            upd(p=>({...p,dayPhase:"flow",spoons:{...p.spoons,current:Math.min(sp,mx)}}));
+            setShowFlowCheck(false);
+            setScreen("flow");
+            toast_("🫘 Фасолини: "+sp+"/"+mx,"#c8a840");
+          }} style={{flex:2,background:flowSpoonsInput?"#c8a840":"#2a2820",border:"none",borderRadius:8,padding:"11px",color:flowSpoonsInput?"#0d0f14":"#444",fontSize:14,fontWeight:700,cursor:flowSpoonsInput?"pointer":"not-allowed",transition:"all 0.2s"}}>
+            🌊 Відкрити Потік
+          </button>
+        </div>
+      </div>
+    </div>}
+
     {/* ── Exchange modal ── */}
     {showExchange&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.92)",zIndex:9998,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
       <div style={{background:"#161921",border:"1px solid #4ab870",borderRadius:16,padding:"24px 20px",maxWidth:320,width:"100%"}}>
@@ -2045,7 +2079,7 @@ function App(){
               </button>
             </div>
             {dc>0
-              ?<button onClick={()=>{upd(p=>({...p,dayPhase:"flow"}));setScreen("flow");}}
+              ?<button onClick={()=>{setFlowSpoonsInput(null);setShowFlowCheck(true);}}
                 style={{width:"100%",background:"rgba(200,168,64,0.12)",border:"1px solid rgba(200,168,64,0.35)",borderRadius:8,padding:"12px",color:"#c8a840",fontSize:13,fontWeight:700,cursor:"pointer"}}>
                 🌊 Відкрити Потік →
               </button>
@@ -3226,6 +3260,31 @@ function App(){
         </button>;})}
       </div>
       {(g.flowDone||[]).length>=3&&<div style={{...S.ok,background:"rgba(74,138,212,0.15)",border:"1px solid rgba(74,138,212,0.4)",color:"#4a8fd4"}}>🌊 Добре відновилась сьогодні!</div>}
+
+      {/* ── Квести C · Для себе ── */}
+      {g.sprintStarted&&(()=>{
+        const cw=g.currentWeek||1;
+        const cQuests=(g.projects?.C?.weeks[cw-1]?.quests||[]).filter(q=>!q.isMilestone&&!q.done&&!g.dailyQuests.find(d=>d.weekQuestId===q.id));
+        if(cQuests.length===0)return null;
+        return <div style={{background:"rgba(184,122,219,0.06)",border:"1px solid rgba(184,122,219,0.25)",borderRadius:12,padding:"14px 16px"}}>
+          <div style={{fontFamily:"monospace",fontSize:9,letterSpacing:"0.15em",textTransform:"uppercase",color:"#b87adb",marginBottom:12}}>
+            🌸 C · Для себе — задачі тижня
+          </div>
+          {cQuests.map(q=>{
+            const inDaily=g.dailyQuests.find(d=>d.weekQuestId===q.id);
+            return <div key={q.id} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 0",borderBottom:"1px solid #1a1a1a"}}>
+              <button onClick={()=>{if(g.energy&&g.mode)addWQToday(q,"C");else toast_("Спочатку введи BB","#e05555");}}
+                style={{flexShrink:0,width:26,height:26,borderRadius:"50%",background:inDaily?"rgba(184,122,219,0.3)":"transparent",border:"2px solid "+(inDaily?"#b87adb":"#333"),display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,cursor:"pointer"}}>
+                {inDaily&&<span style={{color:"#b87adb"}}>✓</span>}
+              </button>
+              <div style={{flex:1}}>
+                <div style={{fontSize:12,color:"#f0ece4",lineHeight:1.4}}>{q.name}</div>
+                {q.zone&&<div style={{fontSize:10,color:"#555",marginTop:2}}>{ZONES.find(z=>z.id===q.zone)?.emoji} {ZONES.find(z=>z.id===q.zone)?.label}</div>}
+              </div>
+            </div>;
+          })}
+        </div>;
+      })()}
     </div>}
 
     {/* ════════════ SHOP ════════════ */}
