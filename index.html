@@ -489,13 +489,21 @@ function App(){
       try{
         const remote=await window.fbLoad();
         if(remote&&remote[SAVE_KEY]&&remote._updatedAt){
-          const localRaw=localStorage.getItem(SAVE_KEY);
-          const localTs=localRaw?JSON.parse(localRaw)?._updatedAt||0:0;
+          // Використовуємо окремий ключ timestamp (не всередині JSON)
+          const localTs=parseInt(localStorage.getItem(SAVE_KEY+"_ts")||"0");
           if(remote._updatedAt>localTs){
             const s=JSON.parse(remote[SAVE_KEY]);
-            localStorage.setItem(SAVE_KEY,remote[SAVE_KEY]);
-            setG(s);
-            console.log('Firebase: loaded newer data from cloud');
+            // Перевіряємо новий день для Firebase-даних теж
+            const today=new Date().toISOString().slice(0,10);
+            if(s.lastActiveDate&&s.lastActiveDate!==today){
+              // Firebase дані старі — не перезаписуємо, наш локальний скид правильніший
+              console.log('Firebase: remote data is from yesterday, keeping local reset');
+            } else {
+              localStorage.setItem(SAVE_KEY,remote[SAVE_KEY]);
+              localStorage.setItem(SAVE_KEY+"_ts",String(remote._updatedAt));
+              setG(s);
+              console.log('Firebase: loaded newer data from cloud');
+            }
           }
         }
       }catch(e){console.warn('Firebase load error:',e);}
