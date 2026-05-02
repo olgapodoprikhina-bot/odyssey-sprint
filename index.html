@@ -529,11 +529,12 @@ function App(){
   const toast_=(msg,color="#c8a840")=>{if(tRef.current)clearTimeout(tRef.current);setToast({msg,color});tRef.current=setTimeout(()=>setToast(null),2500);};
 
   // Ritual timer
+  const playBeep=()=>{try{const ctx=new(window.AudioContext||window.webkitAudioContext)();[[660,0],[880,0.2],[1047,0.4]].forEach(([freq,delay])=>{const o=ctx.createOscillator();const gn=ctx.createGain();o.connect(gn);gn.connect(ctx.destination);o.frequency.value=freq;o.type="sine";gn.gain.setValueAtTime(0,ctx.currentTime+delay);gn.gain.linearRampToValueAtTime(0.45,ctx.currentTime+delay+0.04);gn.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+delay+0.45);o.start(ctx.currentTime+delay);o.stop(ctx.currentTime+delay+0.5);});}catch{}};
   useEffect(()=>{
     if(!timerRunning)return;
     ritualTimerRef.current=setInterval(()=>{
       setTimerLeft(prev=>{
-        if(prev<=1){clearInterval(ritualTimerRef.current);setTimerRunning(false);setTimerDone(true);return 0;}
+        if(prev<=1){clearInterval(ritualTimerRef.current);setTimerRunning(false);setTimerDone(true);playBeep();return 0;}
         return prev-1;
       });
     },1000);
