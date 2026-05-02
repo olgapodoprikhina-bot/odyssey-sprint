@@ -321,6 +321,7 @@ function App(){
   const [showFinishSprint,setShowFinishSprint]=useState(false);
   const [bbInput,setBbInput]=useState("");
   const [bbPreview,setBbPreview]=useState(null);
+  const [spoonsInput,setSpoonsInput]=useState("");
   const [ritual,setRitual]=useState({body:false,phone:false});
   const [showRitual,setShowRitual]=useState(false);
   const [pendingQ,setPendingQ]=useState(null);
@@ -453,7 +454,7 @@ function App(){
         setG(updated);save(updated);
         setNewDaySummary(summary);
         setShowNewDay(true);
-        setBbInput("");setBbPreview(null);
+        setBbInput("");setBbPreview(null);setSpoonsInput("");
         setRitual({body:false,phone:false});
       } else {
         // Той самий день або перший запуск
@@ -528,8 +529,10 @@ function App(){
     upd(p=>({...p,spoons:{...p.spoons,current:next}}));
     toast_("🫘 +"+amount+" · тепер "+next,"#4ab870");
   };
-  const handleBb=v=>{setBbInput(v);setBbPreview(bbToCard(v));};
-  const confirmBb=()=>{const c=bbToCard(bbInput);if(!c){toast_("Введи 0-100","#e05555");return;}upd({energy:c,mode:null,bbValue:bbInput});toast_(c.emoji+" "+c.label+" x"+c.mult,c.color);};
+  const calcBbFinal=(bbG,sp)=>{const bb=parseInt(bbG);const s=parseInt(sp);if(isNaN(bb)||bb<0||bb>100)return null;if(isNaN(s)||s<1||s>10)return null;return Math.round((bb+s*10)/2);};
+  const handleBb=v=>{setBbInput(v);const f=calcBbFinal(v,spoonsInput);setBbPreview(f!==null?bbToCard(f):null);};
+  const handleSpoonsInput=v=>{setSpoonsInput(v);const f=calcBbFinal(bbInput,v);setBbPreview(f!==null?bbToCard(f):null);};
+  const confirmBb=()=>{const f=calcBbFinal(bbInput,spoonsInput);if(f===null){toast_("Введи BB (0–100) і фасолини (1–10)","#e05555");return;}const c=bbToCard(f);if(!c){toast_("Помилка розрахунку","#e05555");return;}upd({energy:c,mode:null,bbValue:String(f)});toast_(c.emoji+" "+c.label+" x"+c.mult,c.color);};
 
   const ritualOk=Object.values(ritual).every(Boolean);
   const finishRitual=()=>{setShowRitual(false);if(pendingQ)addDaily(pendingQ.name,pendingQ.zone,pendingQ.projId);toast_("🔥 Ритуал виконано!","#4ab870");};
@@ -2499,15 +2502,26 @@ function App(){
         </div>)}
       </div>
       <div style={S.card}>
-        <div style={S.cl}>Введи Body Battery</div>
-        <div style={{display:"flex",gap:12,alignItems:"center",marginBottom:12}}>
-          <input type="number" min="0" max="100"
-            style={{...S.inp,fontSize:36,fontWeight:700,textAlign:"center",padding:"14px",color:bbPreview?.color||"#f0ece4",border:"2px solid "+(bbPreview?.color||"#2a2820"),background:bbPreview?bbPreview.bg:"rgba(255,255,255,0.05)",transition:"all 0.3s",flex:1}}
-            placeholder="?" value={bbInput} onChange={e=>handleBb(e.target.value)}/>
-          {bbPreview&&<div style={{fontSize:56,flexShrink:0}}>{bbPreview.emoji}</div>}
+        <div style={S.cl}>Введи показники</div>
+        <div style={{display:"flex",gap:10,marginBottom:10}}>
+          <div style={{flex:3}}>
+            <div style={{fontSize:10,color:"#555",fontFamily:"monospace",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:6}}>Body Battery (Garmin)</div>
+            <input type="number" min="0" max="100"
+              style={{...S.inp,fontSize:32,fontWeight:700,textAlign:"center",padding:"12px",color:bbPreview?.color||"#f0ece4",border:"2px solid "+(bbPreview?.color||"#2a2820"),background:bbPreview?bbPreview.bg:"rgba(255,255,255,0.05)",transition:"all 0.3s",width:"100%"}}
+              placeholder="0–100" value={bbInput} onChange={e=>handleBb(e.target.value)}/>
+          </div>
+          <div style={{flex:2}}>
+            <div style={{fontSize:10,color:"#555",fontFamily:"monospace",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:6}}>🫘 Фасолини</div>
+            <input type="number" min="1" max="10"
+              style={{...S.inp,fontSize:32,fontWeight:700,textAlign:"center",padding:"12px",color:"#d4804a",border:"2px solid "+(spoonsInput?"#d4804a44":"#2a2820"),background:"rgba(212,128,74,0.06)",transition:"all 0.3s",width:"100%"}}
+              placeholder="1–10" value={spoonsInput} onChange={e=>handleSpoonsInput(e.target.value)}/>
+          </div>
         </div>
+        {bbInput&&spoonsInput&&<div style={{fontSize:11,color:"#555",textAlign:"center",marginBottom:8,fontFamily:"monospace"}}>
+          ({bbInput} + {spoonsInput}×10) ÷ 2 = <span style={{color:bbPreview?.color||"#c8a840",fontWeight:700,fontSize:14}}>{calcBbFinal(bbInput,spoonsInput)??"?"}</span> BB
+        </div>}
         {bbPreview&&<div style={{background:bbPreview.color+"15",border:"1px solid "+bbPreview.color+"44",borderRadius:10,padding:"12px 14px",marginBottom:12,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-          <div><div style={{fontSize:15,fontWeight:700,color:bbPreview.color}}>{bbPreview.label}</div><div style={{fontSize:11,color:"#666",marginTop:2}}>Множник x{bbPreview.mult}</div></div>
+          <div><div style={{fontSize:15,fontWeight:700,color:bbPreview.color}}>{bbPreview.emoji} {bbPreview.label}</div><div style={{fontSize:11,color:"#666",marginTop:2}}>Множник x{bbPreview.mult}</div></div>
           <div style={{fontSize:11,color:"#555",textAlign:"right"}}>{bbPreview.id==="dead"&&"Тільки мікро"}{bbPreview.id==="low"&&"Легкі задачі"}{bbPreview.id==="mid"&&"Нормальний день"}{bbPreview.id==="good"&&"Хороший потенціал"}{bbPreview.id==="peak"&&"Максимум! 🚀"}</div>
         </div>}
         <button style={{...S.gold,opacity:bbPreview?1:0.4}} onClick={confirmBb} disabled={!bbPreview}>{g.energy?"🔄 Оновити BB":"✅ Підтвердити"}</button>
