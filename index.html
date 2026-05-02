@@ -655,8 +655,19 @@ function App(){
     const cur=g.spoons?.current??10;
     const max=g.spoons?.max??10;
     const next=Math.min(max,cur+f.spoons);
-    upd(p=>({...p,spoons:{...p.spoons,current:next},flowDone:[...(p.flowDone||[]),f.id]}));
-    toast_(f.emoji+" +"+f.spoons+" 🫘 відновлено!","#4a8fd4");
+    if(g.energy&&g.mode){
+      const mana=calcMana("green",g.energy,g.mode);
+      const newQuest={id:Date.now()+Math.random(),name:f.name,zone:"green",projId:"C",mana,done:false,fromFlow:true};
+      upd(p=>({...p,
+        spoons:{...p.spoons,current:next},
+        flowDone:[...(p.flowDone||[]),f.id],
+        dailyQuests:[...p.dailyQuests,newQuest]
+      }));
+      toast_(f.emoji+" +"+f.spoons+" 🫘 · квест у С додано","#b87adb");
+    } else {
+      upd(p=>({...p,spoons:{...p.spoons,current:next},flowDone:[...(p.flowDone||[]),f.id]}));
+      toast_(f.emoji+" +"+f.spoons+" 🫘 відновлено!","#4a8fd4");
+    }
   };
   const doneHabit=hid=>{
     if(g.dailyHabits.includes(hid))return;
@@ -3252,11 +3263,14 @@ function App(){
       </div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
         {FLOW.map(f=>{const done=(g.flowDone||[]).includes(f.id);return<button key={f.id} onClick={()=>doFlow(f)} disabled={done}
-          style={{borderRadius:12,border:"1px solid "+(done?"rgba(74,138,212,0.4)":"#252a35"),padding:"15px 10px",textAlign:"center",
-          background:done?"rgba(74,138,212,0.1)":"rgba(255,255,255,0.03)",color:"#f0ece4",opacity:done?0.6:1}}>
+          style={{borderRadius:12,border:"1px solid "+(done?"rgba(184,122,219,0.4)":"#252a35"),padding:"15px 10px",textAlign:"center",
+          background:done?"rgba(184,122,219,0.1)":"rgba(255,255,255,0.03)",color:"#f0ece4",opacity:done?0.6:1}}>
           <div style={{fontSize:27,marginBottom:5}}>{f.emoji}</div>
           <div style={{fontSize:12,fontWeight:600,marginBottom:3}}>{f.name}</div>
-          <div style={{fontSize:12,fontFamily:"monospace",color:done?"#4a8fd4":"#888"}}>{done?"✓":"+"+f.spoons+" 🫘"}</div>
+          <div style={{fontSize:11,fontFamily:"monospace",color:done?"#b87adb":"#888"}}>
+            {done?"✓ квест у С":"+"+f.spoons+" 🫘"}
+          </div>
+          {!done&&g.energy&&g.mode&&<div style={{fontSize:9,color:"#444",marginTop:2}}>→ C · +{calcMana("green",g.energy,g.mode)} мани</div>}
         </button>;})}
       </div>
       {(g.flowDone||[]).length>=3&&<div style={{...S.ok,background:"rgba(74,138,212,0.15)",border:"1px solid rgba(74,138,212,0.4)",color:"#4a8fd4"}}>🌊 Добре відновилась сьогодні!</div>}
