@@ -489,18 +489,18 @@ function App(){
       }catch(e){console.warn('Firebase load error:',e);}
 
       // Підписка на live-зміни (інший пристрій)
-      let lastApplied=Date.now();
       unsub=window.fbSubscribe(remote=>{
-        if(!remote||!remote[SAVE_KEY]) return;
-        // Ігноруємо власні зміни (< 3 сек)
-        if(remote._updatedAt&&remote._updatedAt<lastApplied+3000) return;
+        if(!remote||!remote[SAVE_KEY]||!remote._updatedAt) return;
+        // Порівнюємо з нашим останнім збереженням
+        const localTs=parseInt(localStorage.getItem(SAVE_KEY+"_ts")||"0");
+        if(remote._updatedAt<=localTs) return; // наше власне або старіше — пропускаємо
         try{
           const s=JSON.parse(remote[SAVE_KEY]);
           localStorage.setItem(SAVE_KEY,remote[SAVE_KEY]);
+          localStorage.setItem(SAVE_KEY+"_ts",String(remote._updatedAt));
           setG(s);
-          lastApplied=Date.now();
-          console.log('Firebase: synced from another device');
-        }catch{}
+          console.log('Firebase: synced from another device, ts='+remote._updatedAt);
+        }catch(e){console.warn('Firebase sync error:',e);}
       });
     })();
     return ()=>{ if(unsub) unsub(); };
@@ -509,8 +509,10 @@ function App(){
   const save=useCallback(s=>{
     try{
       const json=JSON.stringify(s);
+      const ts=Date.now();
       localStorage.setItem(SAVE_KEY,json);
-      if(window.fbSave) window.fbSave({[SAVE_KEY]:json,_updatedAt:Date.now()}).catch(()=>{});
+      localStorage.setItem(SAVE_KEY+"_ts",String(ts));
+      if(window.fbSave) window.fbSave({[SAVE_KEY]:json,_updatedAt:ts}).catch(()=>{});
     }catch{}
   },[]);
   const upd=useCallback(p=>{setG(prev=>{const next=typeof p==="function"?p(prev):{...prev,...p};save(next);return next;});},[save]);
