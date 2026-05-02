@@ -223,6 +223,7 @@ const fresh=()=>({
   sprintStarted:false,currentWeek:1,sprintNum:1,sprintStartDate:null,weekStartDate:null,
   projects:{A:freshProject("A"),B:freshProject("B"),C:freshProject("C"),D:freshProject("D")},
   dailyQuests:[],microDone:[],flowDone:[],purchases:[],dayPhase:"ritual",workType:null,
+  tomorrowPlan:"",
   lastActiveDate:null, // "YYYY-MM-DD"
   yesterdaySummary:null, // {date, manaEarned, questsDone, habitsDone}
   habits:{
@@ -422,7 +423,8 @@ function App(){
       if(!s.flowDone){s.flowDone=[];}
       if(!s.dayPhase||s.dayPhase==="buffer"){s.dayPhase="ritual";}
       if(!s.ritual){s.ritual={body:false,phone:false};}
-      if(s.workType===undefined){s.workType=null;}
+      if(!s.workType===undefined){s.workType=null;}
+      if(!('tomorrowPlan' in s)){s.tomorrowPlan="";}
       // Міграція: видалити задачі що починаються з * (категорії Todoist)
       if(s.projects){
         let changed=false;
@@ -454,7 +456,7 @@ function App(){
           spoons:{...s.spoons,current:10,lastDate:today},
           energy:null,mode:null,bbValue:"",bbGarmin:"",spoonsValue:"",
           ritual:{body:false,phone:false},
-          dayPhase:"ritual",workType:null,flowDone:[],
+          dayPhase:"ritual",flowDone:[],
           yesterdaySummary:summary,
           // Скинути виконання мовних сесій (але зберегти блоки і history)
           langSession:{...s.langSession,
@@ -2019,7 +2021,6 @@ function App(){
       {(()=>{
         const ph=g.dayPhase||"ritual";
         const wt=g.workType||null;
-        const ritualSec=wt==="digital"?120:300;
         const fmtTimer=s=>Math.floor(s/60)+":"+(s%60).toString().padStart(2,"0");
         return <div style={{background:"rgba(255,255,255,0.02)",border:"1px solid #1e2230",borderRadius:12,padding:"14px 16px"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
@@ -2029,43 +2030,31 @@ function App(){
             </div>
           </div>
 
-          {/* ── Фаза: ритуал — вибір типу ── */}
-          {ph==="ritual"&&!wt&&<>
-            <div style={{fontSize:13,color:"#888",marginBottom:14,textAlign:"center"}}>Що роблю сьогодні першим?</div>
-            <div style={{display:"flex",gap:10}}>
-              <button onClick={()=>upd(p=>({...p,workType:"digital"}))}
-                style={{flex:1,background:"rgba(74,143,212,0.1)",border:"2px solid rgba(74,143,212,0.3)",borderRadius:12,padding:"18px 10px",color:"#4a8fd4",textAlign:"center",cursor:"pointer"}}>
-                <div style={{fontSize:30,marginBottom:8}}>🖥️</div>
-                <div style={{fontSize:13,fontWeight:700,marginBottom:4}}>Цифрова</div>
-                <div style={{fontSize:10,color:"#4a6a8a",lineHeight:1.4}}>CLO3D · фріланс</div>
-              </button>
-              <button onClick={()=>upd(p=>({...p,workType:"manual"}))}
-                style={{flex:1,background:"rgba(184,122,219,0.1)",border:"2px solid rgba(184,122,219,0.3)",borderRadius:12,padding:"18px 10px",color:"#b87adb",textAlign:"center",cursor:"pointer"}}>
-                <div style={{fontSize:30,marginBottom:8}}>🧵</div>
-                <div style={{fontSize:13,fontWeight:700,marginBottom:4}}>Ручна</div>
-                <div style={{fontSize:10,color:"#7a4a9a",lineHeight:1.4}}>Шити · конструювати</div>
-              </button>
-            </div>
-          </>}
-
-          {/* ── Фаза: ритуал — таймер ── */}
-          {ph==="ritual"&&wt&&<>
-            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:14}}>
-              <span style={{fontSize:16}}>{wt==="digital"?"🖥️":"🧵"}</span>
-              <span style={{fontSize:12,color:"#888",fontWeight:600}}>{wt==="digital"?"Цифрова робота":"Ручна робота"}</span>
-              <button onClick={()=>{upd(p=>({...p,workType:null}));setTimerLeft(null);setTimerRunning(false);setTimerDone(false);}}
-                style={{marginLeft:"auto",fontSize:10,color:"#555",background:"transparent",border:"1px solid #2a2820",borderRadius:6,padding:"3px 9px",cursor:"pointer"}}>← змінити</button>
-            </div>
+          {/* ── Фаза: ритуал ── */}
+          {ph==="ritual"&&<>
+            {/* Що заплановано вчора */}
+            {g.tomorrowPlan
+              ?<div style={{background:"rgba(200,168,64,0.08)",border:"1px solid rgba(200,168,64,0.25)",borderRadius:10,padding:"12px 14px",marginBottom:14}}>
+                <div style={{fontSize:10,color:"#886830",fontFamily:"monospace",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:5}}>🌙 Ти запланувала вчора</div>
+                <div style={{fontSize:14,color:"#f0ece4",fontWeight:600,lineHeight:1.4}}>"{g.tomorrowPlan}"</div>
+              </div>
+              :<div style={{background:"rgba(255,255,255,0.03)",border:"1px solid #1e2028",borderRadius:10,padding:"10px 14px",marginBottom:14,fontSize:12,color:"#444",fontStyle:"italic"}}>
+                Вчора план не заповнено — заповни ввечері 👇
+              </div>
+            }
+            {/* Крок ритуалу */}
             <div style={{background:"rgba(200,168,64,0.06)",border:"1px solid rgba(200,168,64,0.2)",borderRadius:10,padding:"16px",marginBottom:12}}>
               <div style={{fontSize:13,color:"#f0ece4",lineHeight:1.6,marginBottom:14}}>
                 {wt==="digital"
                   ?"🖥️ Відкриваю CLO3D і дивлюсь на файл — без дій, просто дивлюсь 2 хвилини"
-                  :"📋 Розкриваю стіл і пишу план на дошці — що зроблю сьогодні (5 хвилин)"}
+                  :wt==="manual"
+                  ?"🧵 Розкладаю тканину і дивлюсь — що хочу зробити сьогодні (2 хвилини)"
+                  :"⚡ Сідаю за стіл, дивлюсь на план і нічого не роблю — просто присутня (2 хвилини)"}
               </div>
               {timerLeft===null
-                ?<button onClick={()=>startTimer(ritualSec)}
+                ?<button onClick={()=>startTimer(120)}
                   style={{width:"100%",background:"rgba(200,168,64,0.15)",border:"1px solid rgba(200,168,64,0.4)",borderRadius:8,padding:"11px",color:"#c8a840",fontSize:14,fontWeight:700,cursor:"pointer"}}>
-                  ▶ Почати · {wt==="digital"?"2 хв":"5 хв"}
+                  ▶ Почати · 2 хв
                 </button>
                 :<div style={{textAlign:"center"}}>
                   <div style={{fontSize:52,fontWeight:700,color:timerDone?"#4ab870":"#c8a840",fontFamily:"monospace",letterSpacing:"0.05em",marginBottom:6}}>
@@ -2090,7 +2079,7 @@ function App(){
               <span style={{fontSize:24}}>⚡</span>
               <div style={{flex:1}}>
                 <div style={{fontSize:13,fontWeight:700,color:"#4a8fd4"}}>Режим роботи</div>
-                <div style={{fontSize:11,color:"#555",marginTop:2}}>{wt==="digital"?"🖥️ Цифрова":"🧵 Ручна"} · {dc}/{tc} квестів виконано</div>
+                <div style={{fontSize:11,color:"#555",marginTop:2}}>{wt==="digital"?"🖥️ Цифрова":wt==="manual"?"🧵 Ручна":"⚡ Активна"} · {dc}/{tc} квестів виконано</div>
               </div>
               <button onClick={()=>setScreen("quests")}
                 style={{fontSize:11,color:"#4a8fd4",background:"rgba(74,143,212,0.1)",border:"1px solid rgba(74,143,212,0.3)",borderRadius:8,padding:"6px 12px",cursor:"pointer"}}>
@@ -2122,6 +2111,32 @@ function App(){
               🎨 Перейти до Потоку
             </button>
           </>}
+        </div>;
+      })()}
+
+      {/* ══ ПІДГОТОВКА ДО ЗАВТРА ══ */}
+      {(()=>{
+        const wt=g.workType||null;
+        return <div style={{background:"rgba(255,255,255,0.02)",border:"1px solid #1e2230",borderRadius:12,padding:"14px 16px"}}>
+          <div style={{fontSize:10,color:"#444",fontFamily:"monospace",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:12}}>🌙 Підготовка до завтра</div>
+          <div style={{fontSize:11,color:"#555",marginBottom:10,lineHeight:1.5}}>Заповни ввечері — щоб вранці не думати</div>
+          <textarea
+            value={g.tomorrowPlan||""}
+            onChange={e=>upd(p=>({...p,tomorrowPlan:e.target.value}))}
+            placeholder="Завтра о 9:00 я починаю з..."
+            rows={2}
+            style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid #252a35",borderRadius:8,padding:"10px 12px",color:"#f0ece4",fontSize:13,resize:"none",lineHeight:1.5,fontFamily:"system-ui,sans-serif",outline:"none",marginBottom:10}}
+          />
+          <div style={{fontSize:10,color:"#555",marginBottom:8,fontFamily:"monospace",textTransform:"uppercase",letterSpacing:"0.08em"}}>Тип роботи</div>
+          <div style={{display:"flex",gap:8}}>
+            {[{id:"digital",e:"🖥️",l:"Цифрова",sub:"CLO3D · фріланс",c:"#4a8fd4",bg:"rgba(74,143,212,0.1)",bc:"rgba(74,143,212,0.4)"},{id:"manual",e:"🧵",l:"Ручна",sub:"Шити · конструювати",c:"#b87adb",bg:"rgba(184,122,219,0.1)",bc:"rgba(184,122,219,0.4)"}].map(opt=><button key={opt.id}
+              onClick={()=>upd(p=>({...p,workType:p.workType===opt.id?null:opt.id}))}
+              style={{flex:1,background:wt===opt.id?opt.bg:"rgba(255,255,255,0.03)",border:"2px solid "+(wt===opt.id?opt.bc:"#252a35"),borderRadius:10,padding:"10px 6px",textAlign:"center",color:wt===opt.id?opt.c:"#555",cursor:"pointer",transition:"all 0.2s"}}>
+              <div style={{fontSize:20,marginBottom:4}}>{opt.e}</div>
+              <div style={{fontSize:12,fontWeight:700}}>{opt.l}</div>
+              <div style={{fontSize:9,color:wt===opt.id?opt.c+"99":"#333",marginTop:2}}>{opt.sub}</div>
+            </button>)}
+          </div>
         </div>;
       })()}
 
