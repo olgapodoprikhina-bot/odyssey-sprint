@@ -218,7 +218,8 @@ const freshProject=pid=>({
 });
 const SAVE_KEY="odyssey_sprint_v4";
 const fresh=()=>({
-  mana:0,energy:null,mode:null,bbValue:"",
+  mana:0,energy:null,mode:null,bbValue:"",bbGarmin:"",spoonsValue:"",
+  ritual:{body:false,phone:false},
   sprintStarted:false,currentWeek:1,sprintNum:1,sprintStartDate:null,weekStartDate:null,
   projects:{A:freshProject("A"),B:freshProject("B"),C:freshProject("C"),D:freshProject("D")},
   dailyQuests:[],microDone:[],flowDone:[],purchases:[],dayPhase:"flow",
@@ -322,7 +323,6 @@ function App(){
   const [bbInput,setBbInput]=useState("");
   const [bbPreview,setBbPreview]=useState(null);
   const [spoonsInput,setSpoonsInput]=useState("");
-  const [ritual,setRitual]=useState({body:false,phone:false});
   const [showRitual,setShowRitual]=useState(false);
   const [pendingQ,setPendingQ]=useState(null);
   // Planning
@@ -414,6 +414,7 @@ function App(){
       if(!s.carryoverPool){s.carryoverPool=[];}
       if(!s.flowDone){s.flowDone=[];}
       if(!s.dayPhase){s.dayPhase="flow";}
+      if(!s.ritual){s.ritual={body:false,phone:false};}
       // Міграція: видалити задачі що починаються з * (категорії Todoist)
       if(s.projects){
         let changed=false;
@@ -443,7 +444,8 @@ function App(){
           microDone:[],
           dailyHabits:[],
           spoons:{...s.spoons,current:10,lastDate:today},
-          energy:null,mode:null,bbValue:"",
+          energy:null,mode:null,bbValue:"",bbGarmin:"",spoonsValue:"",
+          ritual:{body:false,phone:false},
           yesterdaySummary:summary,
           // Скинути виконання мовних сесій (але зберегти блоки і history)
           langSession:{...s.langSession,
@@ -455,12 +457,13 @@ function App(){
         setNewDaySummary(summary);
         setShowNewDay(true);
         setBbInput("");setBbPreview(null);setSpoonsInput("");
-        setRitual({body:false,phone:false});
       } else {
         // Той самий день або перший запуск
         const updated={...s,lastActiveDate:today};
         setG(updated);save(updated);
-        if(s.bbValue){setBbInput(s.bbValue);setBbPreview(bbToCard(s.bbValue));}
+        if(s.bbGarmin){setBbInput(s.bbGarmin);}
+        if(s.spoonsValue){setSpoonsInput(s.spoonsValue);}
+        if(s.bbValue){setBbPreview(bbToCard(s.bbValue));}
         if(s.todoist?.token){setTdToken(s.todoist.token);setTdProjects({A:"",B:"",C:"",inbox:"",...(s.todoist.projects||{})});}
       }
     } else {
@@ -534,9 +537,9 @@ function App(){
   const calcBbFinal=(bbG,sp)=>{const bb=parseInt(bbG);const s=parseInt(sp);if(isNaN(bb)||bb<0||bb>100)return null;if(isNaN(s)||s<1||s>10)return null;return Math.round((bb+s*10)/2);};
   const handleBb=v=>{setBbInput(v);const f=calcBbFinal(v,spoonsInput);setBbPreview(f!==null?bbToCard(f):null);};
   const handleSpoonsInput=v=>{setSpoonsInput(v);const f=calcBbFinal(bbInput,v);setBbPreview(f!==null?bbToCard(f):null);};
-  const confirmBb=()=>{const f=calcBbFinal(bbInput,spoonsInput);if(f===null){toast_("Введи BB (0–100) і фасолини (1–10)","#e05555");return;}const c=bbToCard(f);if(!c){toast_("Помилка розрахунку","#e05555");return;}upd({energy:c,mode:null,bbValue:String(f)});toast_(c.emoji+" "+c.label+" x"+c.mult,c.color);};
+  const confirmBb=()=>{const f=calcBbFinal(bbInput,spoonsInput);if(f===null){toast_("Введи BB (0–100) і фасолини (1–10)","#e05555");return;}const c=bbToCard(f);if(!c){toast_("Помилка розрахунку","#e05555");return;}upd({energy:c,mode:null,bbValue:String(f),bbGarmin:bbInput,spoonsValue:spoonsInput});toast_(c.emoji+" "+c.label+" x"+c.mult,c.color);};
 
-  const ritualOk=Object.values(ritual).every(Boolean);
+  const ritualOk=Object.values(g.ritual||{}).every(Boolean);
   const finishRitual=()=>{setShowRitual(false);if(pendingQ)addDaily(pendingQ.name,pendingQ.zone,pendingQ.projId);toast_("🔥 Ритуал виконано!","#4ab870");};
 
   // ── PLANNING ──
@@ -1147,8 +1150,7 @@ function App(){
         :(p.carryoverPool||[]);
       return{...p,projects:pr,weekReflections:wr,mana:Math.max(0,p.mana+gr.bonus),currentWeek:isLastWeek?3:cw+1,weekStartDate:isLastWeek?p.weekStartDate:new Date().toISOString().slice(0,10),dailyQuests:[],microDone:[],archive:newArchive,carryoverPool:newCarryPool};
     });
-    setRitual({body:false,phone:false});
-    upd(p=>({...p,dailyHabits:[]}));
+    upd(p=>({...p,ritual:{body:false,phone:false},dailyHabits:[]}));
     toast_(gr.bonus>0?gr.label+" +"+gr.bonus+" мани!":gr.label,gr.color);
     setRevDone(0);setRevNote({mood:"",done:"",improve:"",overall:""});setRevCarryover(new Set());
     if(isLastWeek){setShowFinishSprint(true);}
@@ -1178,17 +1180,17 @@ function App(){
         projects:newProjects,
         carryoverPool:[], // очищаємо після переносу
         dailyQuests:[],microDone:[],flowDone:[],dayPhase:"flow",
-        energy:null,mode:null,bbValue:"",
+        ritual:{body:false,phone:false},
+        energy:null,mode:null,bbValue:"",bbGarmin:"",spoonsValue:"",
       };
     });
     setBbInput("");setBbPreview(null);
-    setRitual({body:false,phone:false});
     toast_("🌱 Новий спринт #"+((g.sprintNum||1)+1)+"!","#4ab870");
     setScreen("home");
   };
 
   // ── RESET (повний скид разом з архівом) ──
-  const reset=()=>{const f=fresh();setG(f);save(f);setShowReset(false);setBbInput("");setBbPreview(null);setRitual({body:false,phone:false});toast_("🌱 Повне скидання","#4ab870");};
+  const reset=()=>{const f=fresh();setG(f);save(f);setShowReset(false);setBbInput("");setBbPreview(null);toast_("🌱 Повне скидання","#4ab870");};
 
   const exportData=()=>{
     const data=JSON.stringify(g,null,2);
@@ -2569,14 +2571,14 @@ function App(){
           {ritualOk&&<span style={{fontSize:11,color:"#4ab870"}}>✓ готова до квестів</span>}
         </div>
         {!ritualOk&&<div style={{display:"flex",flexDirection:"column",gap:6}}>
-          {RITUAL.map(s=><button key={s.id} onClick={()=>setRitual(p=>({...p,[s.id]:!p[s.id]}))}
-            style={{display:"flex",alignItems:"center",gap:10,background:ritual[s.id]?"rgba(74,184,112,0.1)":"rgba(255,255,255,0.03)",border:"1px solid "+(ritual[s.id]?"rgba(74,184,112,0.4)":"#252a35"),borderRadius:8,padding:"9px 12px",color:"#f0ece4",textAlign:"left"}}>
-            <div style={{width:20,height:20,borderRadius:"50%",flexShrink:0,background:ritual[s.id]?"#4ab870":"transparent",border:"2px solid "+(ritual[s.id]?"#4ab870":"#333"),display:"flex",alignItems:"center",justifyContent:"center",fontSize:11}}>
-              {ritual[s.id]&&<span style={{color:"#0d0f14",fontWeight:700}}>✓</span>}
+          {RITUAL.map(s=><button key={s.id} onClick={()=>upd(p=>({...p,ritual:{...p.ritual,[s.id]:!(p.ritual||{})[s.id]}}))}
+            style={{display:"flex",alignItems:"center",gap:10,background:(g.ritual||{})[s.id]?"rgba(74,184,112,0.1)":"rgba(255,255,255,0.03)",border:"1px solid "+((g.ritual||{})[s.id]?"rgba(74,184,112,0.4)":"#252a35"),borderRadius:8,padding:"9px 12px",color:"#f0ece4",textAlign:"left"}}>
+            <div style={{width:20,height:20,borderRadius:"50%",flexShrink:0,background:(g.ritual||{})[s.id]?"#4ab870":"transparent",border:"2px solid "+((g.ritual||{})[s.id]?"#4ab870":"#333"),display:"flex",alignItems:"center",justifyContent:"center",fontSize:11}}>
+              {(g.ritual||{})[s.id]&&<span style={{color:"#0d0f14",fontWeight:700}}>✓</span>}
             </div>
             <span style={{fontSize:14,flexShrink:0}}>{s.emoji}</span>
             <div>
-              <div style={{fontSize:12,fontWeight:600,color:ritual[s.id]?"#4ab870":"#f0ece4"}}>{s.label}</div>
+              <div style={{fontSize:12,fontWeight:600,color:(g.ritual||{})[s.id]?"#4ab870":"#f0ece4"}}>{s.label}</div>
               <div style={{fontSize:11,color:"#555",marginTop:1}}>{s.desc}</div>
             </div>
           </button>)}
