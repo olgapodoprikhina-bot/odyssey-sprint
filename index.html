@@ -427,7 +427,8 @@ function App(){
       if(!s.ritual){s.ritual={body:false,phone:false};}
       if(!s.workType===undefined){s.workType=null;}
       if(!('tomorrowPlan' in s)){s.tomorrowPlan="";}
-      if(!s.sprintConstants){s.sprintConstants=[];} (категорії Todoist)
+      if(!s.sprintConstants){s.sprintConstants=[];}
+      // Міграція: видалити задачі що починаються з * (категорії Todoist)
       if(s.projects){
         let changed=false;
         Object.keys(s.projects).forEach(pid=>{
