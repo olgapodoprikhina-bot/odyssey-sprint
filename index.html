@@ -699,6 +699,7 @@ function App(){
   const closeSprintConst=id=>{
     upd(p=>({...p,sprintConstants:(p.sprintConstants||[]).map(c=>c.id===id?{...c,active:false}:c)}));
   };
+  const doneHabit=hid=>{
     if(g.dailyHabits.includes(hid))return;
     const h=HABITS.find(x=>x.id===hid);
     const today=new Date().toISOString().slice(0,10);
