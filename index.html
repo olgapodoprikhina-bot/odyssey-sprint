@@ -370,6 +370,7 @@ function App(){
   const [tdSyncing,setTdSyncing]=useState(false);
   const [tdError,setTdError]=useState("");
   const [showActivators,setShowActivators]=useState(false);
+  const [showCoping,setShowCoping]=useState(false);
   const [showNewDay,setShowNewDay]=useState(false);
   const [newDaySummary,setNewDaySummary]=useState(null);
   const [activatorDone,setActivatorDone]=useState([]);
@@ -2734,6 +2735,36 @@ function App(){
           </button>)}
         </div>}
       </div>
+
+      {/* Копі-карточки */}
+      {(()=>{
+        const COPING=[
+          {id:"c1",emoji:"👦",situation:"Після конфлікту з Федором",text:"Засмучена — нормально. Сідаю, запускаю годинник, дивлюсь 2 хвилини. Більше нічого."},
+          {id:"c2",emoji:"⏰",situation:"Форс-мажор зайняв ранок",text:"Скільки часу лишилось до 13:00? Навіть 40 хвилин — це старт. Запускаю годинник."},
+        ];
+        return <div style={{background:"rgba(255,255,255,0.02)",border:"1px solid #1e2230",borderRadius:12,overflow:"hidden"}}>
+          <button onClick={()=>setShowCoping(p=>!p)}
+            style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 14px",background:"transparent",border:"none",color:"#f0ece4",textAlign:"left",cursor:"pointer"}}>
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <span style={{fontSize:14}}>🃏</span>
+              <span style={{fontFamily:"monospace",fontSize:9,letterSpacing:"0.15em",textTransform:"uppercase",color:"#888"}}>Копі-карточки</span>
+              <span style={{fontSize:10,background:"rgba(184,122,219,0.2)",color:"#b87adb",borderRadius:10,padding:"2px 7px",fontWeight:700}}>{COPING.length}</span>
+            </div>
+            <span style={{fontSize:12,color:"#444",transition:"transform 0.2s",display:"inline-block",transform:showCoping?"rotate(180deg)":"rotate(0deg)"}}>▼</span>
+          </button>
+          {showCoping&&<div style={{padding:"0 12px 12px",display:"flex",flexDirection:"column",gap:8}}>
+            {COPING.map(c=><div key={c.id}
+              style={{background:"rgba(184,122,219,0.07)",border:"1px solid rgba(184,122,219,0.25)",borderRadius:10,padding:"12px 14px"}}>
+              <div style={{fontSize:10,color:"#b87adb",fontFamily:"monospace",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:6}}>
+                {c.emoji} {c.situation}
+              </div>
+              <div style={{fontSize:13,color:"#f0ece4",lineHeight:1.6,fontStyle:"italic"}}>
+                "{c.text}"
+              </div>
+            </div>)}
+          </div>}
+        </div>;
+      })()}
 
       {/* ══ СЬОГОДНІ — головний блок ══ */}
       <div style={{background:"#161921",border:"1px solid #252a35",borderRadius:12,padding:"14px 16px"}}>
