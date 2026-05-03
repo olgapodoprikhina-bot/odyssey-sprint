@@ -224,6 +224,7 @@ const fresh=()=>({
   projects:{A:freshProject("A"),B:freshProject("B"),C:freshProject("C"),D:freshProject("D")},
   dailyQuests:[],microDone:[],flowDone:[],purchases:[],dayPhase:"ritual",workType:null,
   tomorrowPlan:"",
+  sprintConstants:[],
   lastActiveDate:null, // "YYYY-MM-DD"
   yesterdaySummary:null, // {date, manaEarned, questsDone, habitsDone}
   habits:{
@@ -426,7 +427,7 @@ function App(){
       if(!s.ritual){s.ritual={body:false,phone:false};}
       if(!s.workType===undefined){s.workType=null;}
       if(!('tomorrowPlan' in s)){s.tomorrowPlan="";}
-      // Міграція: видалити задачі що починаються з * (категорії Todoist)
+      if(!s.sprintConstants){s.sprintConstants=[];} (категорії Todoist)
       if(s.projects){
         let changed=false;
         Object.keys(s.projects).forEach(pid=>{
@@ -680,7 +681,24 @@ function App(){
       toast_(f.emoji+" +"+f.spoons+" 🫘 відновлено!","#4a8fd4");
     }
   };
-  const doneHabit=hid=>{
+  const addSprintConst=q=>{
+    if((g.sprintConstants||[]).find(c=>c.name===q.name&&c.active))return toast_("Вже є в константах","#c8a840");
+    const sc={id:Date.now(),name:q.name,projId:q.projId||null,zone:q.zone||"green",count:0,streak:0,lastDate:null,active:true};
+    upd(p=>({...p,sprintConstants:[...(p.sprintConstants||[]),sc]}));
+    toast_("🔁 Додано як константу спринту","#c8a840");
+  };
+  const doneSprintConst=id=>{
+    const today=new Date().toISOString().slice(0,10);
+    upd(p=>({...p,sprintConstants:(p.sprintConstants||[]).map(c=>{
+      if(c.id!==id)return c;
+      const streak=c.lastDate===new Date(Date.now()-86400000).toISOString().slice(0,10)?c.streak+1:c.lastDate===today?c.streak:1;
+      return {...c,count:c.count+1,streak,lastDate:today};
+    })}));
+    toast_("🔁 +1 виконання","#c8a840");
+  };
+  const closeSprintConst=id=>{
+    upd(p=>({...p,sprintConstants:(p.sprintConstants||[]).map(c=>c.id===id?{...c,active:false}:c)}));
+  };
     if(g.dailyHabits.includes(hid))return;
     const h=HABITS.find(x=>x.id===hid);
     const today=new Date().toISOString().slice(0,10);
@@ -1321,7 +1339,7 @@ function App(){
 
   const ProjBadge=({pid,size=11})=>{const p=PROJECTS.find(x=>x.id===pid);return <span style={{background:p.bg,border:"1px solid "+p.border,borderRadius:10,padding:"1px 7px",fontSize:size,color:p.color,fontWeight:700,flexShrink:0}}>{p.short}</span>;};
 
-  const QItem=({q,onDone,onDel,onAdd,showProj,onNotion})=>{
+  const QItem=({q,onDone,onDel,onAdd,showProj,onNotion,onSprintConst})=>{
     const zone=ZONES.find(z=>z.id===q.zone);
     const nState=notionQSending[q.id];
     const [showNPicker,setShowNPicker]=React.useState(false);
@@ -1382,6 +1400,7 @@ function App(){
           </button>
         </div>}
       </div>}
+      {onSprintConst&&!q.done&&<button onClick={onSprintConst} title="Перетворити на константу спринту" style={{fontSize:10,color:"#c8a840",background:"rgba(200,168,64,0.08)",border:"1px solid rgba(200,168,64,0.25)",borderRadius:10,padding:"3px 8px",whiteSpace:"nowrap",flexShrink:0}}>→🔁</button>}
       {onAdd&&!q.done&&<button onClick={onAdd} style={{fontSize:10,color:"#4a8fd4",background:"rgba(74,143,212,0.1)",border:"1px solid rgba(74,143,212,0.3)",borderRadius:10,padding:"3px 8px",whiteSpace:"nowrap",flexShrink:0}}>+ сьогодні</button>}
       {onDone&&!q.done&&<button onClick={onDone} style={{width:32,height:32,borderRadius:"50%",background:"rgba(74,184,112,0.15)",border:"2px solid #4ab870",color:"#4ab870",fontSize:15,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>✓</button>}
       {onDone&&q.done&&<span style={{fontSize:18,flexShrink:0}}>✅</span>}
@@ -2789,6 +2808,7 @@ function App(){
             return sorted.map(q=><QItem key={q.id} q={q} showProj
               onDone={()=>doneDaily(q.id)}
               onDel={()=>upd(p=>({...p,dailyQuests:p.dailyQuests.filter(x=>x.id!==q.id)}))}
+              onSprintConst={!q.done?()=>addSprintConst(q):null}
               onNotion={g.notion?.token&&!q.notionPageId?(nProjId,nProjName)=>sendQuestToNotion(q,q.projId,nProjId,nProjName):null}/>);
           }
           // Групування
@@ -3279,6 +3299,45 @@ function App(){
               <div style={{height:"100%",width:h.pct+"%",background:"linear-gradient(90deg,"+h.color+"66,"+h.color+")",borderRadius:2,transition:"width 0.5s"}}/>
             </div>
           </div>)}
+        </div>;
+      })()}
+
+      {/* Спринт-константи */}
+      {(()=>{
+        const active=(g.sprintConstants||[]).filter(c=>c.active);
+        const closed=(g.sprintConstants||[]).filter(c=>!c.active);
+        if(active.length===0&&closed.length===0) return null;
+        return <div style={{background:"#161921",border:"1px solid #252a35",borderRadius:12,padding:"14px 16px"}}>
+          <div style={{fontFamily:"monospace",fontSize:9,letterSpacing:"0.15em",color:"#c8a840",textTransform:"uppercase",marginBottom:12}}>🔁 Константи спринту</div>
+          {active.map(c=>{
+            const today=new Date().toISOString().slice(0,10);
+            const donedToday=c.lastDate===today;
+            return <div key={c.id} style={{background:donedToday?"rgba(200,168,64,0.08)":"rgba(255,255,255,0.03)",border:"1px solid "+(donedToday?"rgba(200,168,64,0.3)":"#252a35"),borderRadius:10,padding:"12px 14px",marginBottom:8}}>
+              <div style={{display:"flex",alignItems:"center",gap:10}}>
+                <button onClick={()=>doneSprintConst(c.id)} disabled={donedToday}
+                  style={{width:32,height:32,borderRadius:"50%",flexShrink:0,background:donedToday?"rgba(200,168,64,0.3)":"transparent",border:"2px solid "+(donedToday?"#c8a840":"#333"),display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,cursor:donedToday?"default":"pointer"}}>
+                  {donedToday?"✓":""}
+                </button>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:13,fontWeight:600,color:"#f0ece4"}}>{c.name}</div>
+                  <div style={{fontSize:11,color:"#555",marginTop:2}}>
+                    🔥 {c.streak} серія · {c.count} разів всього
+                    {c.projId&&<span style={{marginLeft:6,color:PROJECTS.find(p=>p.id===c.projId)?.color||"#555"}}>{PROJECTS.find(p=>p.id===c.projId)?.emoji} {c.projId}</span>}
+                  </div>
+                </div>
+                <button onClick={()=>closeSprintConst(c.id)} title="Закрити константу"
+                  style={{fontSize:11,color:"#444",background:"transparent",border:"1px solid #252a35",borderRadius:8,padding:"3px 8px",cursor:"pointer"}}>
+                  Закрити
+                </button>
+              </div>
+            </div>;
+          })}
+          {closed.length>0&&<div style={{fontSize:11,color:"#333",marginTop:4}}>
+            {closed.map(c=><div key={c.id} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderTop:"1px solid #1a1a1a",color:"#333"}}>
+              <span style={{textDecoration:"line-through"}}>{c.name}</span>
+              <span style={{fontFamily:"monospace"}}>{c.count}×</span>
+            </div>)}
+          </div>}
         </div>;
       })()}
 
