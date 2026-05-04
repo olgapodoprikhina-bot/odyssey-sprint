@@ -2837,6 +2837,7 @@ function App(){
             {qs.map(q=><QItem key={q.id} q={q} showProj={questsGroupBy==="notion"}
               onDone={()=>doneDaily(q.id)}
               onDel={()=>upd(p=>({...p,dailyQuests:p.dailyQuests.filter(x=>x.id!==q.id)}))}
+              onSprintConst={!q.done?()=>addSprintConst(q):null}
               onNotion={g.notion?.token&&!q.notionPageId?(nProjId,nProjName)=>sendQuestToNotion(q,q.projId,nProjId,nProjName):null}/>)}
           </div>);
         })()}
