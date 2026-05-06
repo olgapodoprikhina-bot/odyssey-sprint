@@ -1893,19 +1893,23 @@ function App(){
                     const isPast=dayIdx<effectiveSprintDay;
                     const isToday=dayIdx===effectiveSprintDay;
                     const isWeekPast=isPastWeek;
+                    // Перевіряємо чи це вихідний день
+                    const dayDate=g.sprintStartDate?new Date(new Date(g.sprintStartDate).getTime()+(dayIdx-1)*86400000).toISOString().slice(0,10):null;
+                    const isDayOff=dayDate&&(g.dayOffDates||[]).includes(dayDate);
                     let bg,border;
-                    if(isWeekPast){bg="#4ab870";border="transparent";}
+                    if(isDayOff){bg="#b87adb";border="transparent";}
+                    else if(isWeekPast){bg="#4ab870";border="transparent";}
                     else if(isPast){bg="#c8a840";border="transparent";}
                     else if(isToday){bg="#c8a840";border="#f0d070";}
                     else{bg="#1a1a1a";border="#252a35";}
                     return <div key={i} style={{
                       flex:1,height:isToday?22:16,borderRadius:4,
-                      background:bg,border:"2px solid "+(isToday?border:"transparent"),
+                      background:bg,border:"2px solid "+(isToday&&!isDayOff?border:"transparent"),
                       transition:"all 0.3s",
-                      boxShadow:isToday?"0 0 8px #c8a840aa":"none",
+                      boxShadow:isToday&&!isDayOff?"0 0 8px #c8a840aa":isDayOff?"0 0 6px #b87adb66":"none",
                       position:"relative",
                     }}>
-                      {isToday&&<div style={{position:"absolute",top:-14,left:"50%",transform:"translateX(-50%)",fontSize:9,color:"#c8a840",fontWeight:700,whiteSpace:"nowrap"}}>сьогодні</div>}
+                      {isToday&&<div style={{position:"absolute",top:-14,left:"50%",transform:"translateX(-50%)",fontSize:9,color:isDayOff?"#b87adb":"#c8a840",fontWeight:700,whiteSpace:"nowrap"}}>{isDayOff?"🌿":"сьогодні"}</div>}
                     </div>;
                   })}
                 </div>
