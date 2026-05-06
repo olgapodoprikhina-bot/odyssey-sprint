@@ -233,6 +233,7 @@ const fresh=()=>({
   dailyQuests:[],microDone:[],flowDone:[],purchases:[],dayPhase:"ritual",workType:null,
   tomorrowPlan:"",
   sprintConstants:[],
+  isDayOff:false,dayOffDates:[],
   lastActiveDate:null, // "YYYY-MM-DD"
   yesterdaySummary:null, // {date, manaEarned, questsDone, habitsDone}
   habits:{
@@ -436,6 +437,8 @@ function App(){
       if(!s.workType===undefined){s.workType=null;}
       if(!('tomorrowPlan' in s)){s.tomorrowPlan="";}
       if(!s.sprintConstants){s.sprintConstants=[];}
+      if(!('isDayOff' in s)){s.isDayOff=false;}
+      if(!s.dayOffDates){s.dayOffDates=[];}
       // Міграція: видалити задачі що починаються з * (категорії Todoist)
       if(s.projects){
         let changed=false;
@@ -468,6 +471,7 @@ function App(){
           energy:null,mode:null,bbValue:"",bbGarmin:"",spoonsValue:"",
           ritual:{body:false,phone:false},
           dayPhase:"ritual",flowDone:[],
+          isDayOff:false,
           yesterdaySummary:summary,
           // Скинути виконання мовних сесій (але зберегти блоки і history)
           langSession:{...s.langSession,
@@ -689,6 +693,16 @@ function App(){
       upd(p=>({...p,spoons:{...p.spoons,current:next},flowDone:[...(p.flowDone||[]),f.id]}));
       toast_(f.emoji+" +"+f.spoons+" 🫘 відновлено!","#4a8fd4");
     }
+  };
+  const toggleDayOff=()=>{
+    const today=new Date().toISOString().slice(0,10);
+    upd(p=>{
+      const isDayOff=!p.isDayOff;
+      const dayOffDates=isDayOff
+        ?[...(p.dayOffDates||[]).filter(d=>d!==today),today]
+        :(p.dayOffDates||[]).filter(d=>d!==today);
+      return {...p,isDayOff,dayOffDates};
+    });
   };
   const addSprintConst=q=>{
     if((g.sprintConstants||[]).find(c=>c.name===q.name&&c.active))return toast_("Вже є в константах","#c8a840");
@@ -2055,13 +2069,30 @@ function App(){
         return <div style={{background:"rgba(255,255,255,0.02)",border:"1px solid #1e2230",borderRadius:12,padding:"14px 16px"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
             <div style={{fontSize:10,color:"#444",fontFamily:"monospace",textTransform:"uppercase",letterSpacing:"0.1em"}}>Порядок дня</div>
-            <div style={{display:"flex",gap:4}}>
-              {["ritual","work","flow"].map((p,i)=><div key={p} style={{width:8,height:8,borderRadius:"50%",background:ph===p?"#c8a840":["ritual","work","flow"].indexOf(ph)>i?"#4ab870":"#2a2820"}}/>)}
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <button onClick={toggleDayOff} style={{fontSize:10,padding:"3px 10px",borderRadius:10,border:"1px solid "+(g.isDayOff?"rgba(184,122,219,0.5)":"#252a35"),background:g.isDayOff?"rgba(184,122,219,0.15)":"transparent",color:g.isDayOff?"#b87adb":"#444",cursor:"pointer",fontWeight:g.isDayOff?700:400}}>
+                {g.isDayOff?"🌿 Вихідний":"☀️ Вихідний?"}
+              </button>
+              <div style={{display:"flex",gap:4}}>
+                {["ritual","work","flow"].map((p,i)=><div key={p} style={{width:8,height:8,borderRadius:"50%",background:ph===p?"#c8a840":["ritual","work","flow"].indexOf(ph)>i?"#4ab870":"#2a2820"}}/>)}
+              </div>
             </div>
           </div>
 
+          {/* ── Вихідний режим ── */}
+          {g.isDayOff&&<>
+            <div style={{background:"rgba(184,122,219,0.08)",border:"1px solid rgba(184,122,219,0.3)",borderRadius:10,padding:"16px",textAlign:"center"}}>
+              <div style={{fontSize:28,marginBottom:8}}>🌿</div>
+              <div style={{fontSize:14,fontWeight:700,color:"#b87adb",marginBottom:4}}>Вихідний день</div>
+              <div style={{fontSize:12,color:"#666",lineHeight:1.5}}>Ніяких обов'язкових квестів.<br/>Дрейфуй у вільному режимі.</div>
+            </div>
+            <button onClick={()=>setScreen("quests")} style={{marginTop:10,width:"100%",background:"rgba(184,122,219,0.1)",border:"1px solid rgba(184,122,219,0.25)",borderRadius:8,padding:"10px",color:"#b87adb",fontSize:13,cursor:"pointer"}}>
+              🎯 Квести за бажанням →
+            </button>
+          </>}
+
           {/* ── Фаза: ритуал ── */}
-          {ph==="ritual"&&<>
+          {!g.isDayOff&&ph==="ritual"&&<>
             {/* Що заплановано вчора */}
             {g.tomorrowPlan
               ?<div style={{background:"rgba(200,168,64,0.08)",border:"1px solid rgba(200,168,64,0.25)",borderRadius:10,padding:"12px 14px",marginBottom:14}}>
@@ -2104,7 +2135,7 @@ function App(){
           </>}
 
           {/* ── Фаза: робота ── */}
-          {ph==="work"&&<>
+          {!g.isDayOff&&ph==="work"&&<>
             <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
               <span style={{fontSize:24}}>⚡</span>
               <div style={{flex:1}}>
@@ -2128,7 +2159,7 @@ function App(){
           </>}
 
           {/* ── Фаза: потік ── */}
-          {ph==="flow"&&<>
+          {!g.isDayOff&&ph==="flow"&&<>
             <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
               <span style={{fontSize:24}}>🌊</span>
               <div>
@@ -2742,6 +2773,15 @@ function App(){
         {tc>0&&<div style={{fontFamily:"monospace",fontSize:13,color:"#c8a840",fontWeight:700}}>{dc}/{tc}</div>}
       </div>
 
+      {/* ══ ВИХІДНИЙ ══ */}
+      {g.isDayOff&&<div style={{background:"rgba(184,122,219,0.1)",border:"1px solid rgba(184,122,219,0.35)",borderRadius:12,padding:"12px 16px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+        <div>
+          <div style={{fontSize:13,fontWeight:700,color:"#b87adb"}}>🌿 Вихідний день</div>
+          <div style={{fontSize:11,color:"#666",marginTop:2}}>Квести за бажанням · без зобов'язань</div>
+        </div>
+        <button onClick={toggleDayOff} style={{fontSize:11,color:"#666",background:"transparent",border:"1px solid #333",borderRadius:8,padding:"5px 10px",cursor:"pointer"}}>Скасувати</button>
+      </div>}
+
       {/* ══ РИТУАЛ ЗАПУСКУ ══ */}
       <div style={{background:ritualOk?"rgba(74,184,112,0.06)":"rgba(200,168,64,0.06)",border:"1px solid "+(ritualOk?"rgba(74,184,112,0.3)":"rgba(200,168,64,0.2)"),borderRadius:12,padding:"12px 14px"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:ritualOk?0:10}}>
@@ -3251,10 +3291,11 @@ function App(){
             <div/>
             {days.map(d=>{
               const isToday=d===today;
+              const isDayOff=(g.dayOffDates||[]).includes(d);
               const dd=new Date(d);
-              return <div key={d} style={{textAlign:"center",fontSize:9,color:isToday?"#c8a840":"#444",fontFamily:"monospace",fontWeight:isToday?700:400}}>
+              return <div key={d} style={{textAlign:"center",fontSize:9,color:isDayOff?"#b87adb":isToday?"#c8a840":"#444",fontFamily:"monospace",fontWeight:isToday||isDayOff?700:400}}>
                 {["Нд","Пн","Вт","Ср","Чт","Пт","Сб"][dd.getDay()]}<br/>
-                <span style={{fontSize:8}}>{dd.getDate()}</span>
+                <span style={{fontSize:8}}>{isDayOff?"🌿":dd.getDate()}</span>
               </div>;
             })}
           </div>
@@ -3268,9 +3309,10 @@ function App(){
                 const done=(g.habitHistory?.[d]||[]).includes(h.id);
                 const isTodayDone=isToday&&g.dailyHabits.includes(h.id);
                 const isDone=done||isTodayDone;
+                const isDayOff=(g.dayOffDates||[]).includes(d);
                 return <div key={d} style={{height:20,borderRadius:4,
-                  background:isDone?h.color:"#111",
-                  border:"1px solid "+(isToday&&!isDone?"#333":"transparent"),
+                  background:isDayOff?"rgba(184,122,219,0.2)":isDone?h.color:"#111",
+                  border:"1px solid "+(isDayOff?"rgba(184,122,219,0.4)":isToday&&!isDone?"#333":"transparent"),
                   opacity:isToday?1:0.85,
                   boxShadow:isToday&&isDone?"0 0 6px "+h.color+"88":"none",
                   transition:"all 0.3s"}}/>;
