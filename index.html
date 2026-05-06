@@ -2163,7 +2163,7 @@ function App(){
           </>}
 
           {/* ── Фаза: потік ── */}
-          {!g.isDayOff&&ph==="flow"&&<>
+          {(!g.isDayOff&&ph==="flow"||g.isDayOff)&&<>
             <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
               <span style={{fontSize:24}}>🌊</span>
               <div>
