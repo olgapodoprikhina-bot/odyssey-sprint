@@ -234,6 +234,7 @@ const fresh=()=>({
   tomorrowPlan:"",
   sprintConstants:[],
   isDayOff:false,dayOffDates:[],
+  breaks:[], // [{id, from, to, note}] — перерви між спринтами
   lastActiveDate:null, // "YYYY-MM-DD"
   yesterdaySummary:null, // {date, manaEarned, questsDone, habitsDone}
   habits:{
@@ -381,6 +382,8 @@ function App(){
   const [tdError,setTdError]=useState("");
   const [showActivators,setShowActivators]=useState(false);
   const [showCoping,setShowCoping]=useState(false);
+  const [showBreakModal,setShowBreakModal]=useState(false);
+  const [breakForm,setBreakForm]=useState({from:"",to:"",note:""});
   const [showNewDay,setShowNewDay]=useState(false);
   const [newDaySummary,setNewDaySummary]=useState(null);
   const [activatorDone,setActivatorDone]=useState([]);
@@ -439,6 +442,7 @@ function App(){
       if(!s.sprintConstants){s.sprintConstants=[];}
       if(!('isDayOff' in s)){s.isDayOff=false;}
       if(!s.dayOffDates){s.dayOffDates=[];}
+      if(!s.breaks){s.breaks=[];}
       // Міграція: видалити задачі що починаються з * (категорії Todoist)
       if(s.projects){
         let changed=false;
@@ -1676,6 +1680,42 @@ function App(){
       </div>
     </div>}
 
+    {/* ── Break modal ── */}
+    {showBreakModal&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.92)",zIndex:9998,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+      <div style={{background:"#161921",border:"1px solid #9b59b6",borderRadius:16,padding:"24px 20px",maxWidth:340,width:"100%"}}>
+        <div style={{fontFamily:"monospace",fontSize:9,letterSpacing:"0.2em",color:"#9b59b6",textTransform:"uppercase",marginBottom:10}}>☕ Перерва в роботі</div>
+        <div style={{fontSize:15,fontWeight:700,marginBottom:16}}>Вкажи дати перерви</div>
+        <div style={{display:"flex",gap:10,marginBottom:12}}>
+          <div style={{flex:1}}>
+            <div style={{fontSize:10,color:"#555",marginBottom:4,fontFamily:"monospace",textTransform:"uppercase"}}>З</div>
+            <input type="date" value={breakForm.from} onChange={e=>setBreakForm(p=>({...p,from:e.target.value}))}
+              style={{width:"100%",background:"rgba(255,255,255,0.05)",border:"1px solid #252a35",borderRadius:8,padding:"8px 10px",color:"#f0ece4",fontSize:13}}/>
+          </div>
+          <div style={{flex:1}}>
+            <div style={{fontSize:10,color:"#555",marginBottom:4,fontFamily:"monospace",textTransform:"uppercase"}}>По</div>
+            <input type="date" value={breakForm.to} onChange={e=>setBreakForm(p=>({...p,to:e.target.value}))}
+              style={{width:"100%",background:"rgba(255,255,255,0.05)",border:"1px solid #252a35",borderRadius:8,padding:"8px 10px",color:"#f0ece4",fontSize:13}}/>
+          </div>
+        </div>
+        <input type="text" placeholder="Примітка (необов'язково)" value={breakForm.note}
+          onChange={e=>setBreakForm(p=>({...p,note:e.target.value}))}
+          style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid #252a35",borderRadius:8,padding:"9px 12px",color:"#f0ece4",fontSize:13,marginBottom:16}}/>
+        <div style={{display:"flex",gap:10}}>
+          <button onClick={()=>setShowBreakModal(false)} style={{flex:1,background:"transparent",border:"1px solid #333",borderRadius:8,padding:"10px",color:"#666",fontSize:13}}>Скасувати</button>
+          <button disabled={!breakForm.from||!breakForm.to} onClick={()=>{
+            if(!breakForm.from||!breakForm.to)return;
+            const br={id:Date.now(),from:breakForm.from,to:breakForm.to,note:breakForm.note};
+            upd(p=>({...p,breaks:[...(p.breaks||[]),br]}));
+            setShowBreakModal(false);
+            setBreakForm({from:"",to:"",note:""});
+            toast_("☕ Перерву додано","#9b59b6");
+          }} style={{flex:2,background:breakForm.from&&breakForm.to?"#9b59b6":"#2a2820",border:"none",borderRadius:8,padding:"10px",color:breakForm.from&&breakForm.to?"#fff":"#444",fontSize:14,fontWeight:700,cursor:breakForm.from&&breakForm.to?"pointer":"not-allowed"}}>
+            Зберегти
+          </button>
+        </div>
+      </div>
+    </div>}
+
     {/* ── Exchange modal ── */}
     {showExchange&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.92)",zIndex:9998,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
       <div style={{background:"#161921",border:"1px solid #4ab870",borderRadius:16,padding:"24px 20px",maxWidth:320,width:"100%"}}>
@@ -2179,6 +2219,28 @@ function App(){
         </div>;
       })()}
 
+      {/* ══ ПЕРЕРВА В РОБОТІ ══ */}
+      {(()=>{
+        const breaks=(g.breaks||[]).slice().sort((a,b)=>b.from.localeCompare(a.from));
+        const diffDays=(a,b)=>Math.round((new Date(b)-new Date(a))/86400000)+1;
+        return <div style={{background:"rgba(155,89,182,0.05)",border:"1px solid rgba(155,89,182,0.2)",borderRadius:12,padding:"14px 16px"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:breaks.length>0?12:0}}>
+            <div style={{fontSize:10,color:"#9b59b6",fontFamily:"monospace",textTransform:"uppercase",letterSpacing:"0.1em"}}>☕ Перерва в роботі</div>
+            <button onClick={()=>{setBreakForm({from:"",to:"",note:""});setShowBreakModal(true);}}
+              style={{fontSize:11,color:"#9b59b6",background:"rgba(155,89,182,0.1)",border:"1px solid rgba(155,89,182,0.3)",borderRadius:8,padding:"4px 12px",cursor:"pointer"}}>+ Додати</button>
+          </div>
+          {breaks.length===0&&<div style={{fontSize:11,color:"#333",marginTop:6}}>Немає записаних перерв</div>}
+          {breaks.map(br=><div key={br.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:"1px solid #1a1a1a"}}>
+            <div style={{flex:1}}>
+              <div style={{fontSize:12,color:"#b87adb",fontWeight:600}}>{br.from} → {br.to} <span style={{fontWeight:400,color:"#555"}}>({diffDays(br.from,br.to)} дн.)</span></div>
+              {br.note&&<div style={{fontSize:11,color:"#555",marginTop:2}}>{br.note}</div>}
+            </div>
+            <button onClick={()=>upd(p=>({...p,breaks:p.breaks.filter(x=>x.id!==br.id)}))}
+              style={{fontSize:12,color:"#333",background:"transparent",border:"none",cursor:"pointer",padding:"4px"}}>×</button>
+          </div>)}
+        </div>;
+      })()}
+
       {/* ══ ПІДГОТОВКА ДО ЗАВТРА ══ */}
       {(()=>{
         const wt=g.workType||null;
@@ -2214,6 +2276,7 @@ function App(){
         <button onClick={()=>setShowExchange(true)} style={{background:"rgba(74,184,112,0.1)",border:"1px solid rgba(74,184,112,0.4)",borderRadius:10,padding:"12px",color:"#4ab870",fontSize:13,fontWeight:600}}>💸 Мана → гривні</button>
         <button onClick={()=>setScreen("history")} style={{background:"transparent",border:"1px solid #252a35",borderRadius:10,padding:"12px",color:"#777",fontSize:13}}>📜 Історія</button>
       </div>
+      <button onClick={()=>setScreen("analytics")} style={{width:"100%",background:"rgba(155,89,182,0.08)",border:"1px solid rgba(155,89,182,0.25)",borderRadius:10,padding:"12px",color:"#9b59b6",fontSize:13,fontWeight:600}}>📊 Аналітика року</button>
       {g.sprintStarted&&<button onClick={()=>{
         const allQ=PROJECTS.flatMap(p=>g.projects[p.id].weeks[cw-1].quests.filter(q=>!q.isMilestone));
         const autoDone=allQ.filter(q=>q.done).length;
@@ -2247,6 +2310,94 @@ function App(){
     </div>}
 
     {/* ════════════ HISTORY ════════════ */}
+    {/* ════════════ ANALYTICS ════════════ */}
+    {screen==="analytics"&&<div style={S.scr} className="fu">
+      <div style={S.ttl}>📊 Аналітика року</div>
+      {(()=>{
+        const currentYear=new Date().getFullYear();
+        const allSprints=[...(g.archive||[])].sort((a,b)=>(a.sprintStartDate||"").localeCompare(b.sprintStartDate||""));
+        const breaks=(g.breaks||[]).slice().sort((a,b)=>a.from.localeCompare(b.from));
+        const diffDays=(a,b)=>Math.max(0,Math.round((new Date(b)-new Date(a))/86400000)+1);
+        const sprintDays=s=>{
+          if(!s.sprintStartDate)return 0;
+          const end=s.dateFinished||new Date().toISOString().slice(0,10);
+          return diffDays(s.sprintStartDate,end);
+        };
+        const sprintDayOffs=s=>{
+          return (g.dayOffDates||[]).filter(d=>s.sprintStartDate&&d>=s.sprintStartDate&&(!s.dateFinished||d<=s.dateFinished)).length;
+        };
+        // Поточний спринт
+        const current=g.sprintStarted?{
+          sprintNum:g.sprintNum,sprintStartDate:g.sprintStartDate,
+          manaTotal:g.mana,projects:g.projects,isCurrent:true,
+          dayOffs:(g.dayOffDates||[]).filter(d=>g.sprintStartDate&&d>=g.sprintStartDate).length,
+        }:null;
+        const totalSprintDays=allSprints.reduce((s,sp)=>s+sprintDays(sp),0)+(current&&g.sprintStartDate?diffDays(g.sprintStartDate,new Date().toISOString().slice(0,10)):0);
+        const totalDayOffs=(g.dayOffDates||[]).length;
+        const totalBreakDays=breaks.reduce((s,b)=>s+diffDays(b.from,b.to),0);
+
+        // Об'єднуємо спринти і перерви в хронологічний список
+        const timeline=[];
+        allSprints.forEach(s=>timeline.push({type:"sprint",...s}));
+        breaks.forEach(b=>timeline.push({type:"break",...b}));
+        if(current)timeline.push({type:"sprint",...current});
+        timeline.sort((a,b)=>(a.sprintStartDate||a.from||"").localeCompare(b.sprintStartDate||b.from||""));
+
+        return <>
+          {/* Загальна статистика */}
+          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:16}}>
+            {[
+              {l:"Днів у спринтах",v:totalSprintDays,c:"#c8a840"},
+              {l:"Вихідних",v:totalDayOffs,c:"#b87adb"},
+              {l:"Днів перерви",v:totalBreakDays,c:"#9b59b6"},
+            ].map(x=><div key={x.l} style={{background:"rgba(255,255,255,0.03)",border:"1px solid #252a35",borderRadius:10,padding:"12px 10px",textAlign:"center"}}>
+              <div style={{fontSize:24,fontWeight:700,color:x.c}}>{x.v}</div>
+              <div style={{fontSize:10,color:"#555",marginTop:4,lineHeight:1.3}}>{x.l}</div>
+            </div>)}
+          </div>
+
+          {/* Хронологія */}
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            {timeline.map((item,i)=>{
+              if(item.type==="break"){
+                return <div key={item.id||i} style={{background:"rgba(155,89,182,0.08)",border:"1px solid rgba(155,89,182,0.25)",borderRadius:10,padding:"12px 14px",display:"flex",alignItems:"center",gap:10}}>
+                  <span style={{fontSize:20}}>☕</span>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:12,fontWeight:600,color:"#9b59b6"}}>Перерва · {diffDays(item.from,item.to)} дн.</div>
+                    <div style={{fontSize:11,color:"#555",marginTop:2}}>{item.from} → {item.to}{item.note&&" · "+item.note}</div>
+                  </div>
+                  <button onClick={()=>upd(p=>({...p,breaks:p.breaks.filter(x=>x.id!==item.id)}))}
+                    style={{fontSize:12,color:"#333",background:"transparent",border:"none",cursor:"pointer"}}>×</button>
+                </div>;
+              }
+              const dayOffs=item.isCurrent?item.dayOffs:sprintDayOffs(item);
+              const days=item.isCurrent?diffDays(item.sprintStartDate,new Date().toISOString().slice(0,10)):sprintDays(item);
+              return <div key={item.sprintNum||i} style={{background:item.isCurrent?"rgba(200,168,64,0.06)":"rgba(255,255,255,0.02)",border:"1px solid "+(item.isCurrent?"rgba(200,168,64,0.25)":"#1e2230"),borderRadius:10,padding:"12px 14px"}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+                  <div style={{fontSize:12,fontWeight:700,color:item.isCurrent?"#c8a840":"#f0ece4"}}>
+                    Спринт #{item.sprintNum} {item.isCurrent&&<span style={{fontSize:10,color:"#c8a840",background:"rgba(200,168,64,0.15)",borderRadius:6,padding:"2px 7px",marginLeft:4}}>зараз</span>}
+                  </div>
+                  <div style={{fontSize:11,color:"#555",fontFamily:"monospace"}}>{days} дн.</div>
+                </div>
+                <div style={{fontSize:11,color:"#555",marginBottom:8}}>{item.sprintStartDate||"—"}{item.dateFinished?" → "+item.dateFinished:" → сьогодні"}</div>
+                <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                  <span style={{fontSize:10,background:"rgba(200,168,64,0.12)",color:"#c8a840",borderRadius:8,padding:"3px 8px"}}>✨ {item.manaTotal||0} мани</span>
+                  {dayOffs>0&&<span style={{fontSize:10,background:"rgba(184,122,219,0.12)",color:"#b87adb",borderRadius:8,padding:"3px 8px"}}>🌿 {dayOffs} вихідних</span>}
+                </div>
+              </div>;
+            })}
+            {timeline.length===0&&<div style={{fontSize:13,color:"#444",textAlign:"center",padding:"20px 0"}}>Поки що немає даних</div>}
+          </div>
+
+          {/* Кнопка додати перерву */}
+          <button onClick={()=>{setBreakForm({from:"",to:"",note:""});setShowBreakModal(true);}}
+            style={{width:"100%",background:"rgba(155,89,182,0.1)",border:"1px solid rgba(155,89,182,0.3)",borderRadius:10,padding:"12px",color:"#9b59b6",fontSize:13,fontWeight:600,marginTop:8}}>
+            ☕ + Додати перерву
+          </button>
+        </>;
+      })()}
+    </div>}
+
     {screen==="history"&&<div style={S.scr} className="fu">
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
         <div style={S.ttl}>📜 Історія</div>
