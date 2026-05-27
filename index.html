@@ -2276,7 +2276,7 @@ function App(){
         <button onClick={()=>setShowExchange(true)} style={{background:"rgba(74,184,112,0.1)",border:"1px solid rgba(74,184,112,0.4)",borderRadius:10,padding:"12px",color:"#4ab870",fontSize:13,fontWeight:600}}>💸 Мана → гривні</button>
         <button onClick={()=>setScreen("history")} style={{background:"transparent",border:"1px solid #252a35",borderRadius:10,padding:"12px",color:"#777",fontSize:13}}>📜 Історія</button>
       </div>
-      <button onClick={()=>setScreen("analytics")} style={{width:"100%",background:"rgba(155,89,182,0.08)",border:"1px solid rgba(155,89,182,0.25)",borderRadius:10,padding:"12px",color:"#9b59b6",fontSize:13,fontWeight:600}}>📊 Аналітика року</button>
+      
       {g.sprintStarted&&<button onClick={()=>{
         const allQ=PROJECTS.flatMap(p=>g.projects[p.id].weeks[cw-1].quests.filter(q=>!q.isMilestone));
         const autoDone=allQ.filter(q=>q.done).length;
@@ -2310,94 +2310,6 @@ function App(){
     </div>}
 
     {/* ════════════ HISTORY ════════════ */}
-    {/* ════════════ ANALYTICS ════════════ */}
-    {screen==="analytics"&&<div style={S.scr} className="fu">
-      <div style={S.ttl}>📊 Аналітика року</div>
-      {(()=>{
-        const currentYear=new Date().getFullYear();
-        const allSprints=[...(g.archive||[])].sort((a,b)=>(a.sprintStartDate||"").localeCompare(b.sprintStartDate||""));
-        const breaks=(g.breaks||[]).slice().sort((a,b)=>a.from.localeCompare(b.from));
-        const diffDays=(a,b)=>Math.max(0,Math.round((new Date(b)-new Date(a))/86400000)+1);
-        const sprintDays=s=>{
-          if(!s.sprintStartDate)return 0;
-          const end=s.dateFinished||new Date().toISOString().slice(0,10);
-          return diffDays(s.sprintStartDate,end);
-        };
-        const sprintDayOffs=s=>{
-          return (g.dayOffDates||[]).filter(d=>s.sprintStartDate&&d>=s.sprintStartDate&&(!s.dateFinished||d<=s.dateFinished)).length;
-        };
-        // Поточний спринт
-        const current=g.sprintStarted?{
-          sprintNum:g.sprintNum,sprintStartDate:g.sprintStartDate,
-          manaTotal:g.mana,projects:g.projects,isCurrent:true,
-          dayOffs:(g.dayOffDates||[]).filter(d=>g.sprintStartDate&&d>=g.sprintStartDate).length,
-        }:null;
-        const totalSprintDays=allSprints.reduce((s,sp)=>s+sprintDays(sp),0)+(current&&g.sprintStartDate?diffDays(g.sprintStartDate,new Date().toISOString().slice(0,10)):0);
-        const totalDayOffs=(g.dayOffDates||[]).length;
-        const totalBreakDays=breaks.reduce((s,b)=>s+diffDays(b.from,b.to),0);
-
-        // Об'єднуємо спринти і перерви в хронологічний список
-        const timeline=[];
-        allSprints.forEach(s=>timeline.push({type:"sprint",...s}));
-        breaks.forEach(b=>timeline.push({type:"break",...b}));
-        if(current)timeline.push({type:"sprint",...current});
-        timeline.sort((a,b)=>(a.sprintStartDate||a.from||"").localeCompare(b.sprintStartDate||b.from||""));
-
-        return <>
-          {/* Загальна статистика */}
-          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:16}}>
-            {[
-              {l:"Днів у спринтах",v:totalSprintDays,c:"#c8a840"},
-              {l:"Вихідних",v:totalDayOffs,c:"#b87adb"},
-              {l:"Днів перерви",v:totalBreakDays,c:"#9b59b6"},
-            ].map(x=><div key={x.l} style={{background:"rgba(255,255,255,0.03)",border:"1px solid #252a35",borderRadius:10,padding:"12px 10px",textAlign:"center"}}>
-              <div style={{fontSize:24,fontWeight:700,color:x.c}}>{x.v}</div>
-              <div style={{fontSize:10,color:"#555",marginTop:4,lineHeight:1.3}}>{x.l}</div>
-            </div>)}
-          </div>
-
-          {/* Хронологія */}
-          <div style={{display:"flex",flexDirection:"column",gap:8}}>
-            {timeline.map((item,i)=>{
-              if(item.type==="break"){
-                return <div key={item.id||i} style={{background:"rgba(155,89,182,0.08)",border:"1px solid rgba(155,89,182,0.25)",borderRadius:10,padding:"12px 14px",display:"flex",alignItems:"center",gap:10}}>
-                  <span style={{fontSize:20}}>☕</span>
-                  <div style={{flex:1}}>
-                    <div style={{fontSize:12,fontWeight:600,color:"#9b59b6"}}>Перерва · {diffDays(item.from,item.to)} дн.</div>
-                    <div style={{fontSize:11,color:"#555",marginTop:2}}>{item.from} → {item.to}{item.note&&" · "+item.note}</div>
-                  </div>
-                  <button onClick={()=>upd(p=>({...p,breaks:p.breaks.filter(x=>x.id!==item.id)}))}
-                    style={{fontSize:12,color:"#333",background:"transparent",border:"none",cursor:"pointer"}}>×</button>
-                </div>;
-              }
-              const dayOffs=item.isCurrent?item.dayOffs:sprintDayOffs(item);
-              const days=item.isCurrent?diffDays(item.sprintStartDate,new Date().toISOString().slice(0,10)):sprintDays(item);
-              return <div key={item.sprintNum||i} style={{background:item.isCurrent?"rgba(200,168,64,0.06)":"rgba(255,255,255,0.02)",border:"1px solid "+(item.isCurrent?"rgba(200,168,64,0.25)":"#1e2230"),borderRadius:10,padding:"12px 14px"}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-                  <div style={{fontSize:12,fontWeight:700,color:item.isCurrent?"#c8a840":"#f0ece4"}}>
-                    Спринт #{item.sprintNum} {item.isCurrent&&<span style={{fontSize:10,color:"#c8a840",background:"rgba(200,168,64,0.15)",borderRadius:6,padding:"2px 7px",marginLeft:4}}>зараз</span>}
-                  </div>
-                  <div style={{fontSize:11,color:"#555",fontFamily:"monospace"}}>{days} дн.</div>
-                </div>
-                <div style={{fontSize:11,color:"#555",marginBottom:8}}>{item.sprintStartDate||"—"}{item.dateFinished?" → "+item.dateFinished:" → сьогодні"}</div>
-                <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-                  <span style={{fontSize:10,background:"rgba(200,168,64,0.12)",color:"#c8a840",borderRadius:8,padding:"3px 8px"}}>✨ {item.manaTotal||0} мани</span>
-                  {dayOffs>0&&<span style={{fontSize:10,background:"rgba(184,122,219,0.12)",color:"#b87adb",borderRadius:8,padding:"3px 8px"}}>🌿 {dayOffs} вихідних</span>}
-                </div>
-              </div>;
-            })}
-            {timeline.length===0&&<div style={{fontSize:13,color:"#444",textAlign:"center",padding:"20px 0"}}>Поки що немає даних</div>}
-          </div>
-
-          {/* Кнопка додати перерву */}
-          <button onClick={()=>{setBreakForm({from:"",to:"",note:""});setShowBreakModal(true);}}
-            style={{width:"100%",background:"rgba(155,89,182,0.1)",border:"1px solid rgba(155,89,182,0.3)",borderRadius:10,padding:"12px",color:"#9b59b6",fontSize:13,fontWeight:600,marginTop:8}}>
-            ☕ + Додати перерву
-          </button>
-        </>;
-      })()}
-    </div>}
-
     {screen==="history"&&<div style={S.scr} className="fu">
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
         <div style={S.ttl}>📜 Історія</div>
@@ -2405,16 +2317,42 @@ function App(){
       </div>
 
       {/* Загальна статистика */}
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-        <div style={{background:"rgba(200,168,64,0.08)",border:"1px solid rgba(200,168,64,0.25)",borderRadius:10,padding:"14px",textAlign:"center"}}>
-          <div style={{fontSize:28,fontWeight:700,color:"#c8a840"}}>{archive.length}</div>
-          <div style={{fontSize:10,color:"#666",marginTop:2,fontFamily:"monospace",textTransform:"uppercase",letterSpacing:"0.1em"}}>Завершених спринтів</div>
+      {(()=>{
+        const diffDays=(a,b)=>Math.max(0,Math.round((new Date(b)-new Date(a))/86400000)+1);
+        const toDate=v=>{if(!v)return null;if(typeof v==="string"&&v.includes("-"))return v;const d=new Date(Number(v));return isNaN(d)?null:d.toISOString().slice(0,10);};
+        const totalDayOffs=(g.dayOffDates||[]).length;
+        const totalBreakDays=(g.breaks||[]).reduce((s,b)=>s+diffDays(b.from,b.to),0);
+        return <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6,marginBottom:4}}>
+          {[
+            {v:archive.length,l:"Спринтів",c:"#c8a840"},
+            {v:archive.reduce((s,a)=>s+(a.manaTotal||0),0).toLocaleString(),l:"Мани",c:"#4a8fd4"},
+            {v:totalDayOffs,l:"Вихідних 🌿",c:"#b87adb"},
+            {v:totalBreakDays,l:"Перерва дн.",c:"#9b59b6"},
+          ].map(x=><div key={x.l} style={{background:"rgba(255,255,255,0.03)",border:"1px solid #1e2230",borderRadius:8,padding:"10px 6px",textAlign:"center"}}>
+            <div style={{fontSize:18,fontWeight:700,color:x.c}}>{x.v}</div>
+            <div style={{fontSize:9,color:"#555",marginTop:3,lineHeight:1.3}}>{x.l}</div>
+          </div>)}
+        </div>;
+      })()}
+
+      {/* Перерви */}
+      {(g.breaks||[]).length>0&&<div style={{background:"rgba(155,89,182,0.06)",border:"1px solid rgba(155,89,182,0.2)",borderRadius:10,padding:"12px 14px"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+          <div style={{fontSize:10,color:"#9b59b6",fontFamily:"monospace",textTransform:"uppercase",letterSpacing:"0.1em"}}>☕ Перерви</div>
+          <button onClick={()=>{setBreakForm({from:"",to:"",note:""});setShowBreakModal(true);}} style={{fontSize:10,color:"#9b59b6",background:"transparent",border:"1px solid rgba(155,89,182,0.3)",borderRadius:6,padding:"2px 8px",cursor:"pointer"}}>+ Додати</button>
         </div>
-        <div style={{background:"rgba(74,143,212,0.08)",border:"1px solid rgba(74,143,212,0.25)",borderRadius:10,padding:"14px",textAlign:"center"}}>
-          <div style={{fontSize:28,fontWeight:700,color:"#4a8fd4"}}>{archive.reduce((s,a)=>s+(a.manaTotal||0),0).toLocaleString()}</div>
-          <div style={{fontSize:10,color:"#666",marginTop:2,fontFamily:"monospace",textTransform:"uppercase",letterSpacing:"0.1em"}}>Мани зароблено</div>
-        </div>
-      </div>
+        {(g.breaks||[]).slice().sort((a,b)=>a.from.localeCompare(b.from)).map(br=>{
+          const days=Math.max(0,Math.round((new Date(br.to)-new Date(br.from))/86400000)+1);
+          return <div key={br.id} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 0",borderTop:"1px solid #1a1a1a"}}>
+            <div style={{flex:1}}>
+              <span style={{fontSize:12,color:"#b87adb",fontWeight:600}}>{br.from} → {br.to}</span>
+              <span style={{fontSize:11,color:"#555",marginLeft:6}}>{days} дн.{br.note?" · "+br.note:""}</span>
+            </div>
+            <button onClick={()=>upd(p=>({...p,breaks:p.breaks.filter(x=>x.id!==br.id)}))} style={{fontSize:12,color:"#333",background:"transparent",border:"none",cursor:"pointer"}}>×</button>
+          </div>;
+        })}
+      </div>}
+      {(g.breaks||[]).length===0&&<button onClick={()=>{setBreakForm({from:"",to:"",note:""});setShowBreakModal(true);}} style={{width:"100%",background:"rgba(155,89,182,0.06)",border:"1px solid rgba(155,89,182,0.2)",borderRadius:10,padding:"10px",color:"#9b59b6",fontSize:12,cursor:"pointer"}}>☕ + Додати перерву між спринтами</button>}
 
       {archive.length===0&&<div style={{textAlign:"center",padding:"50px 20px",color:"#333"}}>
         <div style={{fontSize:40,marginBottom:12}}>📭</div>
@@ -2426,6 +2364,9 @@ function App(){
       {[...archive].reverse().map((a,ri)=>{
         const i=archive.length-1-ri;
         const isOpen=histOpen===i;
+        // Виправляємо dateFinished якщо це timestamp
+        const toDate=v=>{if(!v)return null;if(typeof v==="string"&&v.match(/^\d{4}-/))return v;const d=new Date(Number(v));return isNaN(d)?null:d.toISOString().slice(0,10);};
+        const dateFinished=toDate(a.dateFinished);
         // Підрахувати середній грейд
         const allGrades=["A","B","C"].flatMap(pid=>a.projects[pid]?.gradeKeys||[]).filter(Boolean);
         const gradeScore={elite:4,solid:3,survive:2,reset:1};
@@ -2442,7 +2383,7 @@ function App(){
                 <span style={{fontSize:16}}>{gradeEmoji[overallGrade]}</span>
                 <span style={{fontSize:11,color:gradeColors[overallGrade]}}>{gradeLabel[overallGrade]}</span>
               </div>
-              <div style={{fontSize:11,color:"#555"}}>{a.sprintStartDate?sprintRange(a.sprintStartDate):fmtDate(a.dateFinished)} · {(a.manaTotal||0).toLocaleString()} мани</div>
+              <div style={{fontSize:11,color:"#555"}}>{a.sprintStartDate?sprintRange(a.sprintStartDate):fmtDate(dateFinished)} · {(a.manaTotal||0).toLocaleString()} мани</div>
             </div>
             <div style={{display:"flex",alignItems:"center",gap:10}}>
               <button onClick={e=>{e.stopPropagation();if(window.confirm("Видалити Спринт #"+a.sprintNum+" з архіву?"))upd(p=>({...p,archive:p.archive.filter((_,idx)=>idx!==i)}));}} 
@@ -2455,8 +2396,16 @@ function App(){
 
           {/* Розгорнутий контент */}
           {isOpen&&<div style={{padding:"0 16px 16px",borderTop:"1px solid #1a1a1a"}}>
+            {/* Редагування дати закінчення */}
+            <div style={{marginTop:12,marginBottom:14,display:"flex",alignItems:"center",gap:10}}>
+              <div style={{fontSize:10,color:"#555",fontFamily:"monospace",textTransform:"uppercase",letterSpacing:"0.08em",flexShrink:0}}>Дата закінчення:</div>
+              <input type="date" defaultValue={dateFinished||""} onBlur={e=>{
+                const val=e.target.value;
+                if(val)upd(p=>({...p,archive:p.archive.map((sp,idx)=>idx===i?{...sp,dateFinished:val}:sp)}));
+              }} style={{background:"rgba(255,255,255,0.04)",border:"1px solid #252a35",borderRadius:6,padding:"4px 8px",color:"#f0ece4",fontSize:12}}/>
+            </div>
             {/* Оцінки тижнів */}
-            <div style={{marginTop:14,marginBottom:14}}>
+            <div style={{marginBottom:14}}>
               <div style={S.cl}>Оцінки тижнів</div>
               <WeekGrades gradeKeys={a.projects?.A?.gradeKeys||[null,null,null]}/>
             </div>
