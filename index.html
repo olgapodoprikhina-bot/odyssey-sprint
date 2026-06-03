@@ -74,6 +74,11 @@ button{cursor:pointer;font-family:inherit}
 .dragon-advance{animation:dragonBounce 0.7s ease,dragonGlow 0.7s ease}
 .dragon-retreat{animation:dragonShake 0.6s ease}
 .dragon-dayoff{animation:none;opacity:0.5}
+@keyframes flashIn{0%{opacity:0;transform:scale(0.85)}15%{opacity:1;transform:scale(1.05)}30%{transform:scale(1)}85%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(1.1)}}
+@keyframes flashText{0%{opacity:0;transform:translateY(20px)}20%{opacity:1;transform:translateY(0)}80%{opacity:1}100%{opacity:0}}
+.dragon-flash-overlay{position:fixed;inset:0;z-index:9999;background:rgba(180,30,30,0.92);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;animation:flashIn 1.8s ease forwards;pointer-events:none;}
+.dragon-flash-text{font-size:72px;font-weight:900;color:#fff;font-family:monospace;animation:flashText 1.8s ease forwards;text-shadow:0 0 40px rgba(255,100,100,0.8);}
+.dragon-flash-sub{font-size:18px;color:rgba(255,255,255,0.8);font-family:monospace;letter-spacing:0.15em;text-transform:uppercase;animation:flashText 1.8s ease forwards;}
 </style>
 </head>
 <body><div id="root"></div>
@@ -480,7 +485,8 @@ function App(){
   const [histOpen,setHistOpen]=useState(null);
   const [dragonAnim,setDragonAnim]=useState(null);
   const [bankImages,setBankImages]=useState([]);
-  const [now,setNow]=useState(new Date()); // для лічильника 9:00
+  const [now,setNow]=useState(new Date());
+  const [showRetreatFlash,setShowRetreatFlash]=useState(false); // для лічильника 9:00
   const tRef=useRef(null);
   // Ritual timer
   const [timerLeft,setTimerLeft]=useState(null);
@@ -602,7 +608,14 @@ function App(){
             uk:{...s.langSession.uk, todayDone:{}, todayPicks:{}},
           },
         };
-        if(dragonEvent){setTimeout(()=>{setDragonAnim(dragonEvent);setTimeout(()=>setDragonAnim(null),1000);},600);}
+        if(dragonEvent){setTimeout(()=>{
+          if(dragonEvent==="retreat"){
+            setShowRetreatFlash(true);
+            setTimeout(()=>setShowRetreatFlash(false),1900);
+          } else {
+            setDragonAnim(dragonEvent);setTimeout(()=>setDragonAnim(null),1000);
+          }
+        },600);}
         setG(updated);save(updated);
         setNewDaySummary(summary);
         setShowNewDay(true);
@@ -4191,6 +4204,14 @@ function App(){
         <span style={{fontSize:17}}>{t.e}</span><span style={{fontSize:8}}>{t.l}</span>
       </button>)}
     </nav>
+
+    {/* ════ ПОВНОЕКРАННИЙ ФЛЕШ ВІДКАТУ ════ */}
+    {showRetreatFlash&&<div className="dragon-flash-overlay">
+      <div style={{fontSize:52,marginBottom:8}}>😢</div>
+      <div className="dragon-flash-text">−1 сцена</div>
+      <div className="dragon-flash-sub">Дракончик сумує...</div>
+      <div style={{fontSize:13,color:"rgba(255,255,255,0.5)",fontFamily:"monospace",marginTop:8}}>Ритуал не було виконано вчора</div>
+    </div>}
   </div>;
 }
 
