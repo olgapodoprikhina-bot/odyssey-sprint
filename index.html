@@ -822,7 +822,16 @@ function App(){
       const dayOffDates=isDayOff
         ?[...(p.dayOffDates||[]).filter(d=>d!==today),today]
         :(p.dayOffDates||[]).filter(d=>d!==today);
-      return {...p,isDayOff,dayOffDates};
+      // Вихідний = дракончик просувається вперед (один раз на день)
+      let dragon=p.dragon||{scene:0,lastAdvanceDate:null,finished:false};
+      if(isDayOff&&dragon.lastAdvanceDate!==today){
+        dragon={...dragon,scene:Math.min(21,dragon.scene+1),lastAdvanceDate:today,finished:dragon.scene+1===21};
+        setTimeout(()=>{setDragonAnim("advance");setTimeout(()=>setDragonAnim(null),900);},100);
+      } else if(!isDayOff&&dragon.lastAdvanceDate===today){
+        // Скасування вихідного — відкат на -1
+        dragon={...dragon,scene:Math.max(0,dragon.scene-1),lastAdvanceDate:null,finished:false};
+      }
+      return{...p,isDayOff,dayOffDates,dragon};
     });
   };
   const addSprintConst=q=>{
@@ -2036,7 +2045,10 @@ function App(){
           </div>
           {/* Статус */}
           <div style={{fontSize:11,color:"#555",marginBottom:8}}>
-            {advancedToday&&!isDayOff?"✓ Ритуал виконано сьогодні":isDayOff?"Вихідний — сцена не змінюється":"Зроби ритуал — дракончик просунеться вперед"}
+            {isDayOff&&advancedToday?"🌿 Вихідний зарахований — дракончик відпочив і просунувся":
+             isDayOff?"🌿 Вихідний":
+             advancedToday?"✓ Ритуал виконано сьогодні":
+             "Зроби ритуал або вихідний — дракончик просунеться вперед"}
           </div>
           {/* Прогрес крапки */}
           <div style={{display:"flex",gap:3,justifyContent:"center",flexWrap:"wrap",maxWidth:220,margin:"0 auto"}}>
