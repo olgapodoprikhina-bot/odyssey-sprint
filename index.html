@@ -266,6 +266,7 @@ const fresh=()=>({
   isDayOff:false,dayOffDates:[],
   breaks:[], // [{id, from, to, note}] — перерви між спринтами
   dragon:{scene:0,lastAdvanceDate:null,finished:false}, // дракончик
+  dragonBank:{}, // {sceneN: [{id, dataUrl, name}]} — банк зображень
   lastActiveDate:null, // "YYYY-MM-DD"
   yesterdaySummary:null, // {date, manaEarned, questsDone, habitsDone}
   habits:{
@@ -1941,14 +1942,23 @@ function App(){
         const isDayOff=g.isDayOff;
         const advancedToday=dr.lastAdvanceDate===today;
         const progressPct=Math.round(dr.scene/21*100);
+        // Рандомна картинка для поточної сцени
+        const bankImgs=(g.dragonBank||{})[dr.scene]||[];
+        const randImg=bankImgs.length>0?bankImgs[Math.floor(Math.random()*bankImgs.length)]:null;
         return <div style={{background:"#161921",border:"1px solid #252a35",borderRadius:14,padding:"16px",textAlign:"center",position:"relative",overflow:"hidden"}}>
           {/* Фонова смужка прогресу */}
           <div style={{position:"absolute",bottom:0,left:0,height:3,width:progressPct+"%",background:"linear-gradient(90deg,#c8a840,#f0d070)",borderRadius:3,transition:"width 0.6s"}}/>
-          <div style={{fontFamily:"monospace",fontSize:8,letterSpacing:"0.18em",color:"#555",textTransform:"uppercase",marginBottom:10}}>🐲 Дракончик · сцена {dr.scene}/21</div>
-          {/* Великий емодзі */}
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+            <div style={{fontFamily:"monospace",fontSize:8,letterSpacing:"0.18em",color:"#555",textTransform:"uppercase"}}>🐲 Дракончик · сцена {dr.scene}/21</div>
+            <button onClick={()=>setScreen("dragonbank")} style={{fontSize:10,color:"#555",background:"rgba(255,255,255,0.05)",border:"1px solid #252a35",borderRadius:6,padding:"3px 8px",cursor:"pointer"}}>🖼 Банк</button>
+          </div>
+          {/* Зображення або емодзі */}
           <div className={dragonAnim==="advance"?"dragon-advance":dragonAnim==="retreat"?"dragon-retreat":isDayOff?"dragon-dayoff":""}
-            style={{fontSize:64,lineHeight:1,marginBottom:8,transition:"all 0.3s"}}>
-            {sc.e}
+            style={{marginBottom:8,transition:"all 0.3s"}}>
+            {randImg
+              ?<img src={randImg.dataUrl} alt={sc.label} style={{width:"100%",maxHeight:200,objectFit:"contain",borderRadius:10,display:"block",margin:"0 auto"}}/>
+              :<div style={{fontSize:72,lineHeight:1}}>{sc.e}</div>
+            }
           </div>
           {/* Назва сцени */}
           <div style={{fontSize:13,fontWeight:700,color:dragonAnim==="retreat"?"#e05555":dr.scene===21?"#c8a840":"#f0ece4",marginBottom:4,lineHeight:1.3}}>
@@ -2408,7 +2418,7 @@ function App(){
         </button>
         {homeOpen.nav&&<div style={{padding:"0 14px 14px",display:"flex",flexDirection:"column",gap:8}}>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-        {[{e:"🌅",l:"Ранковий ритуал",d:"Введи Body Battery",sc:"morning"},{e:"📋",l:"Квести сьогодні",d:tc?dc+"/"+tc+" виконано":"Обрати з тижня",sc:"quests"},{e:"🆘",l:"Мікро-режим",d:g.microDone.length+"/8",sc:"micro"},{e:"🌊",l:"Потік",d:(g.flowDone||[]).length+"/"+FLOW.length,sc:"flow"},{e:"🛒",l:"Крамниця",d:g.mana+" мани",sc:"shop"}].map(q=><button key={q.sc} onClick={()=>setScreen(q.sc)} style={{background:"rgba(255,255,255,0.03)",border:"1px solid #252a35",borderRadius:12,padding:"15px 12px",textAlign:"left",color:"#f0ece4",display:"flex",flexDirection:"column",gap:4}}>
+        {[{e:"🌅",l:"Ранковий ритуал",d:"Введи Body Battery",sc:"morning"},{e:"📋",l:"Квести сьогодні",d:tc?dc+"/"+tc+" виконано":"Обрати з тижня",sc:"quests"},{e:"🆘",l:"Мікро-режим",d:g.microDone.length+"/8",sc:"micro"},{e:"🌊",l:"Потік",d:(g.flowDone||[]).length+"/"+FLOW.length,sc:"flow"},{e:"🛒",l:"Крамниця",d:g.mana+" мани",sc:"shop"},{e:"🖼",l:"Банк дракона",d:Object.values(g.dragonBank||{}).reduce((a,v)=>a+v.length,0)+" фото",sc:"dragonbank"}].map(q=><button key={q.sc} onClick={()=>setScreen(q.sc)} style={{background:"rgba(255,255,255,0.03)",border:"1px solid #252a35",borderRadius:12,padding:"15px 12px",textAlign:"left",color:"#f0ece4",display:"flex",flexDirection:"column",gap:4}}>
           <span style={{fontSize:22}}>{q.e}</span><span style={{fontWeight:700,fontSize:14}}>{q.l}</span><span style={{fontSize:11,color:"#555"}}>{q.d}</span>
         </button>)}
       </div>
@@ -3892,6 +3902,63 @@ function App(){
       <button style={{...S.gold,fontSize:15,padding:"15px"}} onClick={closeWeek}>
         {cw<3?"🏁 Закрити тиждень "+cw+" → Тиждень "+(cw+1):"🏆 Завершити спринт!"}
       </button>
+    </div>}
+
+    {/* ════════════ DRAGON BANK ════════════ */}
+    {screen==="dragonbank"&&<div style={S.scr} className="fu">
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:4}}>
+        <button onClick={()=>setScreen("home")} style={{background:"transparent",border:"none",color:"#555",fontSize:20,cursor:"pointer",padding:"0 4px"}}>←</button>
+        <div style={{fontSize:17,fontWeight:700,color:"#f0ece4"}}>🖼 Банк зображень дракончика</div>
+      </div>
+      <div style={{fontSize:11,color:"#555",lineHeight:1.5,marginBottom:4}}>
+        Для кожної сцени завантаж кілька картинок — при проходженні ритуалу буде показана випадкова з відповідної сцени.
+      </div>
+      {DRAGON_SCENES.filter(s=>s.n>0).map(sc=>{
+        const imgs=(g.dragonBank||{})[sc.n]||[];
+        return <div key={sc.n} style={{background:"#161921",border:"1px solid #252a35",borderRadius:12,overflow:"hidden"}}>
+          {/* Header */}
+          <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",borderBottom:imgs.length>0?"1px solid #1e2028":"none"}}>
+            <span style={{fontSize:22}}>{sc.e}</span>
+            <div style={{flex:1}}>
+              <div style={{fontSize:12,fontWeight:700,color:"#f0ece4"}}>{sc.label}</div>
+              <div style={{fontSize:10,color:"#555"}}>Сцена {sc.n} · Тиждень {sc.week} · {imgs.length} фото</div>
+            </div>
+            <label style={{cursor:"pointer",background:"rgba(200,168,64,0.1)",border:"1px solid rgba(200,168,64,0.3)",borderRadius:8,padding:"5px 10px",fontSize:11,color:"#c8a840",flexShrink:0}}>
+              + Додати
+              <input type="file" accept="image/*" multiple style={{display:"none"}} onChange={e=>{
+                const files=Array.from(e.target.files);
+                files.forEach(file=>{
+                  const reader=new FileReader();
+                  reader.onload=ev=>{
+                    upd(p=>{
+                      const bank={...(p.dragonBank||{})};
+                      const prev=bank[sc.n]||[];
+                      bank[sc.n]=[...prev,{id:Date.now()+Math.random(),dataUrl:ev.target.result,name:file.name}];
+                      return{...p,dragonBank:bank};
+                    });
+                  };
+                  reader.readAsDataURL(file);
+                });
+                e.target.value="";
+              }}/>
+            </label>
+          </div>
+          {/* Images grid */}
+          {imgs.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:6,padding:"10px 14px"}}>
+            {imgs.map(img=><div key={img.id} style={{position:"relative",width:72,height:72,borderRadius:8,overflow:"hidden",flexShrink:0}}>
+              <img src={img.dataUrl} alt={img.name} style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+              <button onClick={()=>upd(p=>{
+                const bank={...(p.dragonBank||{})};
+                bank[sc.n]=(bank[sc.n]||[]).filter(x=>x.id!==img.id);
+                return{...p,dragonBank:bank};
+              })} style={{position:"absolute",top:2,right:2,width:18,height:18,borderRadius:"50%",background:"rgba(0,0,0,0.7)",border:"none",color:"#fff",fontSize:11,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1}}>×</button>
+            </div>)}
+          </div>}
+        </div>;
+      })}
+      <div style={{fontSize:10,color:"#333",textAlign:"center",paddingBottom:8}}>
+        Зображення зберігаються локально в браузері та синхронізуються з Firebase.
+      </div>
     </div>}
 
     </div>
