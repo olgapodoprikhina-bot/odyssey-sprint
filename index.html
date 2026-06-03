@@ -266,7 +266,7 @@ const fresh=()=>({
   isDayOff:false,dayOffDates:[],
   breaks:[], // [{id, from, to, note}] — перерви між спринтами
   dragon:{scene:0,lastAdvanceDate:null,finished:false}, // дракончик
-  dragonBank:{}, // {sceneN: [{id, dataUrl, name}]} — банк зображень
+  dragonBank:{}, // {sceneN: [{id, name}]} — тільки метадані, base64 в IndexedDB
   lastActiveDate:null, // "YYYY-MM-DD"
   yesterdaySummary:null, // {date, manaEarned, questsDone, habitsDone}
   habits:{
@@ -357,6 +357,50 @@ const addDays=(dateStr,n)=>{const d=new Date(dateStr);d.setDate(d.getDate()+n);r
 const weekRange=(sprintStart,weekNum)=>{if(!sprintStart)return "";return fmtShort(addDays(sprintStart,(weekNum-1)*7))+"–"+fmtShort(addDays(sprintStart,weekNum*7-1));};
 const sprintRange=(sprintStart)=>{if(!sprintStart)return "";return fmtShort(sprintStart)+"–"+fmtShort(addDays(sprintStart,20));};
 
+// ══ IndexedDB для зображень дракончика ══
+const IDB_NAME="odyssey-dragon-images";
+const IDB_STORE="images";
+function idbOpen(){
+  return new Promise((res,rej)=>{
+    const req=indexedDB.open(IDB_NAME,1);
+    req.onupgradeneeded=e=>e.target.result.createObjectStore(IDB_STORE,{keyPath:"id"});
+    req.onsuccess=e=>res(e.target.result);
+    req.onerror=rej;
+  });
+}
+async function idbPut(img){
+  const db=await idbOpen();
+  return new Promise((res,rej)=>{
+    const tx=db.transaction(IDB_STORE,"readwrite");
+    tx.objectStore(IDB_STORE).put(img);
+    tx.oncomplete=res; tx.onerror=rej;
+  });
+}
+async function idbGet(id){
+  const db=await idbOpen();
+  return new Promise((res,rej)=>{
+    const req=db.transaction(IDB_STORE,"readonly").objectStore(IDB_STORE).get(id);
+    req.onsuccess=e=>res(e.target.result||null);
+    req.onerror=rej;
+  });
+}
+async function idbGetAll(){
+  const db=await idbOpen();
+  return new Promise((res,rej)=>{
+    const req=db.transaction(IDB_STORE,"readonly").objectStore(IDB_STORE).getAll();
+    req.onsuccess=e=>res(e.target.result||[]);
+    req.onerror=rej;
+  });
+}
+async function idbDelete(id){
+  const db=await idbOpen();
+  return new Promise((res,rej)=>{
+    const tx=db.transaction(IDB_STORE,"readwrite");
+    tx.objectStore(IDB_STORE).delete(id);
+    tx.oncomplete=res; tx.onerror=rej;
+  });
+}
+
 function App(){
   const [g,setG]=useState(fresh());
   const [screen,setScreen]=useState("home");
@@ -432,6 +476,7 @@ function App(){
   const [flowSpoonsInput,setFlowSpoonsInput]=useState(null); // 1-10
   const [histOpen,setHistOpen]=useState(null); // index of expanded archive entry
   const [dragonAnim,setDragonAnim]=useState(null); // null | "advance" | "retreat" | "dayoff"
+  const [bankImages,setBankImages]=useState([]); // [{id, data}] з IndexedDB
   const tRef=useRef(null);
   // Ritual timer
   const [timerLeft,setTimerLeft]=useState(null);
@@ -478,6 +523,25 @@ function App(){
       if(!('isDayOff' in s)){s.isDayOff=false;}
       if(!s.dayOffDates){s.dayOffDates=[];}
       if(!s.breaks){s.breaks=[];}
+      // Міграція dragonBank: якщо старий формат з dataUrl — перенести в IndexedDB
+      if(s.dragonBank){
+        let needsSave=false;
+        const newBank={};
+        Object.entries(s.dragonBank).forEach(([sceneN,items])=>{
+          newBank[sceneN]=(items||[]).map(item=>{
+            if(item.dataUrl){
+              needsSave=true;
+              const id=item.id||Date.now()+Math.random();
+              idbPut({id,data:item.dataUrl}).catch(()=>{});
+              return{id,name:item.name||"img"};
+            }
+            return item;
+          });
+        });
+        if(needsSave){s.dragonBank=newBank;}
+      }
+      if(!s.dragonBank){s.dragonBank={};}
+      if(!s.dragon){s.dragon={scene:0,lastAdvanceDate:null,finished:false};}
       // Міграція: видалити задачі що починаються з * (категорії Todoist)
       if(s.projects){
         let changed=false;
@@ -606,6 +670,11 @@ function App(){
   },[]);
   const upd=useCallback(p=>{setG(prev=>{const next=typeof p==="function"?p(prev):{...prev,...p};save(next);return next;});},[save]);
   const toast_=(msg,color="#c8a840")=>{if(tRef.current)clearTimeout(tRef.current);setToast({msg,color});tRef.current=setTimeout(()=>setToast(null),2500);};
+
+  // Завантажити зображення дракончика з IndexedDB при старті
+  useEffect(()=>{
+    idbGetAll().then(imgs=>setBankImages(imgs)).catch(()=>{});
+  },[]);
 
   // Ritual timer
   const playBeep=()=>{try{const ctx=new(window.AudioContext||window.webkitAudioContext)();[[660,0],[880,0.2],[1047,0.4]].forEach(([freq,delay])=>{const o=ctx.createOscillator();const gn=ctx.createGain();o.connect(gn);gn.connect(ctx.destination);o.frequency.value=freq;o.type="sine";gn.gain.setValueAtTime(0,ctx.currentTime+delay);gn.gain.linearRampToValueAtTime(0.45,ctx.currentTime+delay+0.04);gn.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+delay+0.45);o.start(ctx.currentTime+delay);o.stop(ctx.currentTime+delay+0.5);});}catch{}};
@@ -1942,9 +2011,10 @@ function App(){
         const isDayOff=g.isDayOff;
         const advancedToday=dr.lastAdvanceDate===today;
         const progressPct=Math.round(dr.scene/21*100);
-        // Рандомна картинка для поточної сцени
-        const bankImgs=(g.dragonBank||{})[dr.scene]||[];
-        const randImg=bankImgs.length>0?bankImgs[Math.floor(Math.random()*bankImgs.length)]:null;
+        // Рандомна картинка для поточної сцени з IndexedDB
+        const bankMeta=(g.dragonBank||{})[dr.scene]||[];
+        const bankData=bankMeta.map(m=>bankImages.find(b=>b.id===m.id)).filter(Boolean);
+        const randImg=bankData.length>0?bankData[Math.floor(Math.random()*bankData.length)]:null;
         return <div style={{background:"#161921",border:"1px solid #252a35",borderRadius:14,padding:"16px",textAlign:"center",position:"relative",overflow:"hidden"}}>
           {/* Фонова смужка прогресу */}
           <div style={{position:"absolute",bottom:0,left:0,height:3,width:progressPct+"%",background:"linear-gradient(90deg,#c8a840,#f0d070)",borderRadius:3,transition:"width 0.6s"}}/>
@@ -1956,7 +2026,7 @@ function App(){
           <div className={dragonAnim==="advance"?"dragon-advance":dragonAnim==="retreat"?"dragon-retreat":isDayOff?"dragon-dayoff":""}
             style={{marginBottom:8,transition:"all 0.3s"}}>
             {randImg
-              ?<img src={randImg.dataUrl} alt={sc.label} style={{width:"100%",maxHeight:200,objectFit:"contain",borderRadius:10,display:"block",margin:"0 auto"}}/>
+              ?<img src={randImg.data} alt={sc.label} style={{width:"100%",maxHeight:200,objectFit:"contain",borderRadius:10,display:"block",margin:"0 auto"}}/>
               :<div style={{fontSize:72,lineHeight:1}}>{sc.e}</div>
             }
           </div>
@@ -3911,10 +3981,11 @@ function App(){
         <div style={{fontSize:17,fontWeight:700,color:"#f0ece4"}}>🖼 Банк зображень дракончика</div>
       </div>
       <div style={{fontSize:11,color:"#555",lineHeight:1.5,marginBottom:4}}>
-        Для кожної сцени завантаж кілька картинок — при проходженні ритуалу буде показана випадкова з відповідної сцени.
+        Для кожної сцени завантаж кілька картинок — при відкритті головного екрану показується випадкова з відповідної сцени. Зберігаються локально в IndexedDB (не в хмарі).
       </div>
       {DRAGON_SCENES.filter(s=>s.n>0).map(sc=>{
-        const imgs=(g.dragonBank||{})[sc.n]||[];
+        const meta=(g.dragonBank||{})[sc.n]||[];
+        const imgs=meta.map(m=>({...m,data:bankImages.find(b=>b.id===m.id)?.data||null}));
         return <div key={sc.n} style={{background:"#161921",border:"1px solid #252a35",borderRadius:12,overflow:"hidden"}}>
           {/* Header */}
           <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",borderBottom:imgs.length>0?"1px solid #1e2028":"none"}}>
@@ -3929,11 +4000,15 @@ function App(){
                 const files=Array.from(e.target.files);
                 files.forEach(file=>{
                   const reader=new FileReader();
-                  reader.onload=ev=>{
+                  reader.onload=async ev=>{
+                    const id=Date.now()+Math.random();
+                    const imgObj={id,data:ev.target.result};
+                    await idbPut(imgObj);
+                    setBankImages(prev=>[...prev,imgObj]);
                     upd(p=>{
                       const bank={...(p.dragonBank||{})};
                       const prev=bank[sc.n]||[];
-                      bank[sc.n]=[...prev,{id:Date.now()+Math.random(),dataUrl:ev.target.result,name:file.name}];
+                      bank[sc.n]=[...prev,{id,name:file.name}];
                       return{...p,dragonBank:bank};
                     });
                   };
@@ -3945,19 +4020,56 @@ function App(){
           </div>
           {/* Images grid */}
           {imgs.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:6,padding:"10px 14px"}}>
-            {imgs.map(img=><div key={img.id} style={{position:"relative",width:72,height:72,borderRadius:8,overflow:"hidden",flexShrink:0}}>
-              <img src={img.dataUrl} alt={img.name} style={{width:"100%",height:"100%",objectFit:"cover"}}/>
-              <button onClick={()=>upd(p=>{
-                const bank={...(p.dragonBank||{})};
-                bank[sc.n]=(bank[sc.n]||[]).filter(x=>x.id!==img.id);
-                return{...p,dragonBank:bank};
-              })} style={{position:"absolute",top:2,right:2,width:18,height:18,borderRadius:"50%",background:"rgba(0,0,0,0.7)",border:"none",color:"#fff",fontSize:11,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1}}>×</button>
+            {imgs.map(img=><div key={img.id} style={{position:"relative",width:72,height:72,borderRadius:8,overflow:"hidden",flexShrink:0,background:"#111"}}>
+              {img.data
+                ?<img src={img.data} alt={img.name} style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+                :<div style={{width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:"#333"}}>...</div>
+              }
+              <button onClick={async()=>{
+                await idbDelete(img.id);
+                setBankImages(prev=>prev.filter(b=>b.id!==img.id));
+                upd(p=>{
+                  const bank={...(p.dragonBank||{})};
+                  bank[sc.n]=(bank[sc.n]||[]).filter(x=>x.id!==img.id);
+                  return{...p,dragonBank:bank};
+                });
+              }} style={{position:"absolute",top:2,right:2,width:18,height:18,borderRadius:"50%",background:"rgba(0,0,0,0.75)",border:"none",color:"#fff",fontSize:11,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1}}>×</button>
             </div>)}
           </div>}
         </div>;
       })}
+      {/* Бекап кнопки */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginTop:4}}>
+        <button onClick={async()=>{
+          const allImgs=await idbGetAll();
+          const backup={meta:g.dragonBank||{},images:allImgs};
+          const blob=new Blob([JSON.stringify(backup)],{type:"application/json"});
+          const url=URL.createObjectURL(blob);
+          const a=document.createElement("a");a.href=url;a.download="dragon_bank_backup.json";a.click();URL.revokeObjectURL(url);
+          toast_("💾 Банк збережено","#4ab870");
+        }} style={{background:"rgba(74,143,212,0.1)",border:"1px solid rgba(74,143,212,0.3)",borderRadius:10,padding:"10px",color:"#4a8fd4",fontSize:12,cursor:"pointer"}}>
+          💾 Зберегти банк
+        </button>
+        <label style={{background:"rgba(74,143,212,0.1)",border:"1px solid rgba(74,143,212,0.3)",borderRadius:10,padding:"10px",color:"#4a8fd4",fontSize:12,cursor:"pointer",textAlign:"center"}}>
+          📂 Відновити банк
+          <input type="file" accept=".json" style={{display:"none"}} onChange={e=>{
+            const f=e.target.files[0];if(!f)return;
+            const r=new FileReader();
+            r.onload=async ev=>{
+              try{
+                const backup=JSON.parse(ev.target.result);
+                for(const img of backup.images||[]){await idbPut(img);}
+                setBankImages(await idbGetAll());
+                upd(p=>({...p,dragonBank:backup.meta||{}}));
+                toast_("✅ Банк відновлено","#4ab870");
+              }catch{toast_("❌ Помилка файлу","#e05555");}
+            };
+            r.readAsText(f);e.target.value="";
+          }}/>
+        </label>
+      </div>
       <div style={{fontSize:10,color:"#333",textAlign:"center",paddingBottom:8}}>
-        Зображення зберігаються локально в браузері та синхронізуються з Firebase.
+        Зображення зберігаються в IndexedDB · Firebase їх не синхронізує
       </div>
     </div>}
 
