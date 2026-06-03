@@ -2047,9 +2047,44 @@ function App(){
           <div style={{fontSize:11,color:"#555",marginBottom:8}}>
             {isDayOff&&advancedToday?"🌿 Вихідний зарахований — дракончик відпочив і просунувся":
              isDayOff?"🌿 Вихідний":
-             advancedToday?"✓ Ритуал виконано сьогодні":
-             "Зроби ритуал або вихідний — дракончик просунеться вперед"}
+             advancedToday?"✓ Погодовано сьогодні":
+             "Не забудь погодувати дракончика"}
           </div>
+          {/* Кнопка годування */}
+          {!isDayOff&&(()=>{
+            const workStarted=g.dayPhase==="work"||g.dayPhase==="flow";
+            const allQuestsDone=g.dailyQuests.length>0&&g.dailyQuests.every(q=>q.done);
+            const canFeed=workStarted&&allQuestsDone;
+            const reason=!workStarted?"Спочатку натисни «Починаю роботу»":!allQuestsDone?"Виконай всі заплановані квести ("+dc+"/"+tc+")":"";
+            return <div style={{marginBottom:10}}>
+              <button
+                disabled={advancedToday||!canFeed}
+                onClick={()=>{
+                  const today=new Date().toISOString().slice(0,10);
+                  upd(p=>{
+                    const dr=p.dragon||{scene:0,lastAdvanceDate:null,finished:false};
+                    if(dr.lastAdvanceDate===today)return p;
+                    const newScene=Math.min(21,dr.scene+1);
+                    return{...p,dragon:{...dr,scene:newScene,lastAdvanceDate:today,finished:newScene===21}};
+                  });
+                  setDragonAnim("advance");
+                  setTimeout(()=>setDragonAnim(null),900);
+                }}
+                style={{
+                  width:"100%",
+                  background:advancedToday?"rgba(255,255,255,0.03)":canFeed?"rgba(200,168,64,0.15)":"rgba(255,255,255,0.03)",
+                  border:"1px solid "+(advancedToday?"#1e2028":canFeed?"rgba(200,168,64,0.5)":"#1e2028"),
+                  borderRadius:10,padding:"11px",
+                  color:advancedToday?"#333":canFeed?"#c8a840":"#333",
+                  fontSize:14,fontWeight:700,
+                  cursor:(advancedToday||!canFeed)?"default":"pointer",
+                  transition:"all 0.3s",
+                }}>
+                {advancedToday?"🐉 Вже погодовано сьогодні":canFeed?"🍖 Погодувати дракончика":"🔒 Погодувати дракончика"}
+              </button>
+              {!advancedToday&&!canFeed&&<div style={{fontSize:10,color:"#444",marginTop:5,textAlign:"center"}}>{reason}</div>}
+            </div>;
+          })()}
           {/* Прогрес крапки */}
           <div style={{display:"flex",gap:3,justifyContent:"center",flexWrap:"wrap",maxWidth:220,margin:"0 auto"}}>
             {Array.from({length:21},(_,i)=>{
@@ -2374,19 +2409,8 @@ function App(){
             </div>
             <button disabled={!timerDone}
               onClick={()=>{
-                const today=new Date().toISOString().slice(0,10);
-                upd(p=>{
-                  const dr=p.dragon||{scene:0,lastAdvanceDate:null,finished:false};
-                  const alreadyAdvanced=dr.lastAdvanceDate===today;
-                  const newScene=alreadyAdvanced?dr.scene:Math.min(21,dr.scene+1);
-                  return{...p,dayPhase:"work",
-                    dragon:{...dr,scene:newScene,lastAdvanceDate:today,finished:newScene===21}
-                  };
-                });
+                upd(p=>({...p,dayPhase:"work"}));
                 setTimerLeft(null);setTimerDone(false);
-                const today2=new Date().toISOString().slice(0,10);
-                const dr=g.dragon||{scene:0,lastAdvanceDate:null};
-                if(dr.lastAdvanceDate!==today2){setDragonAnim("advance");setTimeout(()=>setDragonAnim(null),900);}
               }}
               style={{width:"100%",background:timerDone?"rgba(74,143,212,0.15)":"rgba(255,255,255,0.03)",border:"1px solid "+(timerDone?"rgba(74,143,212,0.5)":"#1e2028"),borderRadius:8,padding:"12px",color:timerDone?"#4a8fd4":"#333",fontSize:14,fontWeight:700,cursor:timerDone?"pointer":"not-allowed",transition:"all 0.3s"}}>
               ⚡ Починаю роботу {timerDone?"→":"(зачекай таймер)"}
