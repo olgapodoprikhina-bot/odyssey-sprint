@@ -68,6 +68,12 @@ button{cursor:pointer;font-family:inherit}
 ::-webkit-scrollbar{width:3px}::-webkit-scrollbar-thumb{background:#2a2a2a}
 @keyframes fu{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 .fu{animation:fu 0.25s ease}
+@keyframes dragonBounce{0%,100%{transform:scale(1)}30%{transform:scale(1.4)}60%{transform:scale(0.9)}80%{transform:scale(1.15)}}
+@keyframes dragonGlow{0%,100%{filter:drop-shadow(0 0 0px #c8a840)}50%{filter:drop-shadow(0 0 24px #f0d070)}}
+@keyframes dragonShake{0%,100%{transform:translateX(0)}20%{transform:translateX(-10px)}40%{transform:translateX(10px)}60%{transform:translateX(-8px)}80%{transform:translateX(8px)}}
+.dragon-advance{animation:dragonBounce 0.7s ease,dragonGlow 0.7s ease}
+.dragon-retreat{animation:dragonShake 0.6s ease}
+.dragon-dayoff{animation:none;opacity:0.5}
 </style>
 </head>
 <body><div id="root"></div>
@@ -213,6 +219,30 @@ const HABITS=[
    mana:30},
 ];
 
+const DRAGON_SCENES=[
+  {n:0,  e:"🌑",label:"Ще не почалось",           week:0},
+  {n:1,  e:"🥚",label:"Холодне яйце",              week:1},
+  {n:2,  e:"🌡",label:"Яйце теплішає — світиться", week:1},
+  {n:3,  e:"🔸",label:"Перша тріщина",              week:1},
+  {n:4,  e:"🔶",label:"Тріщин більше",              week:1},
+  {n:5,  e:"🦶",label:"Видно маленький кіготь",    week:1},
+  {n:6,  e:"🐣",label:"Наполовину вилупилось",      week:1},
+  {n:7,  e:"🐉",label:"Вилупився дракончик!",       week:1},
+  {n:8,  e:"🐾",label:"Робить перші кроки",         week:2},
+  {n:9,  e:"🚲",label:"Їде на велосипеді",          week:2},
+  {n:10, e:"🏊",label:"Вчиться плавати",            week:2},
+  {n:11, e:"🌳",label:"Лізе на дерево",             week:2},
+  {n:12, e:"🔥",label:"Перший вогник з носа",       week:2},
+  {n:13, e:"🪂",label:"Підстрибує і ледь летить",   week:2},
+  {n:14, e:"✈",label:"Летить! Низько але летить",   week:2},
+  {n:15, e:"🧳",label:"Пакує валізку",              week:3},
+  {n:16, e:"👋",label:"Прощається з друзями",       week:3},
+  {n:17, e:"🦅",label:"Розправляє крила",           week:3},
+  {n:18, e:"🛫",label:"Відривається від землі",     week:3},
+  {n:19, e:"⛰",label:"Летить над горами",           week:3},
+  {n:20, e:"🌅",label:"Летить до заходу сонця",     week:3},
+  {n:21, e:"🌴",label:"Долетів до теплих країв!",   week:3},
+];
 const MILESTONE_STEPS=[
   {key:"w3",label:"Тиждень 3 — фінальний рубіж",q:"Що зроблено до кінця тижня 3?",hint:"Зазвичай = ціль або дуже близько."},
   {key:"w2",label:"Тиждень 2 — проміжний рубіж", q:"Що зроблено до кінця тижня 2,\nщоб тиждень 3 став можливим?",hint:"Думай НАЗАД від тижня 3."},
@@ -235,6 +265,7 @@ const fresh=()=>({
   sprintConstants:[],
   isDayOff:false,dayOffDates:[],
   breaks:[], // [{id, from, to, note}] — перерви між спринтами
+  dragon:{scene:0,lastAdvanceDate:null,finished:false}, // дракончик
   lastActiveDate:null, // "YYYY-MM-DD"
   yesterdaySummary:null, // {date, manaEarned, questsDone, habitsDone}
   habits:{
@@ -399,6 +430,7 @@ function App(){
   const [showFlowCheck,setShowFlowCheck]=useState(false);
   const [flowSpoonsInput,setFlowSpoonsInput]=useState(null); // 1-10
   const [histOpen,setHistOpen]=useState(null); // index of expanded archive entry
+  const [dragonAnim,setDragonAnim]=useState(null); // null | "advance" | "retreat" | "dayoff"
   const tRef=useRef(null);
   // Ritual timer
   const [timerLeft,setTimerLeft]=useState(null);
@@ -468,6 +500,17 @@ function App(){
           questsTotal:s.dailyQuests.length,
           habitsDone:(s.dailyHabits||[]).length,
         };
+        // Dragon: якщо вчора не запустили ритуал (dayPhase залишилась "ritual") — відкат
+        const dragonPrev=s.dragon||{scene:0,lastAdvanceDate:null,finished:false};
+        const ritualDoneYesterday=dragonPrev.lastAdvanceDate===s.lastActiveDate;
+        let newDragonScene=dragonPrev.scene;
+        let dragonEvent=null;
+        if(!s.isDayOff&&!ritualDoneYesterday&&dragonPrev.scene>0){
+          newDragonScene=Math.max(0,dragonPrev.scene-1);
+          dragonEvent="retreat";
+        } else if(s.isDayOff){
+          dragonEvent="dayoff";
+        }
         const updated={...s,
           lastActiveDate:today,
           dailyQuests:[],
@@ -479,12 +522,14 @@ function App(){
           dayPhase:"ritual",flowDone:[],
           isDayOff:false,
           yesterdaySummary:summary,
+          dragon:{...dragonPrev,scene:newDragonScene},
           // Скинути виконання мовних сесій (але зберегти блоки і history)
           langSession:{...s.langSession,
             fr:{...s.langSession.fr, todayDone:{}, todayPicks:{}},
             uk:{...s.langSession.uk, todayDone:{}, todayPicks:{}},
           },
         };
+        if(dragonEvent){setTimeout(()=>{setDragonAnim(dragonEvent);setTimeout(()=>setDragonAnim(null),1000);},600);}
         setG(updated);save(updated);
         setNewDaySummary(summary);
         setShowNewDay(true);
@@ -1275,6 +1320,7 @@ function App(){
         dailyQuests:[],microDone:[],flowDone:[],dayPhase:"flow",
         ritual:{body:false,phone:false},
         energy:null,mode:null,bbValue:"",bbGarmin:"",spoonsValue:"",
+        dragon:{scene:0,lastAdvanceDate:null,finished:false},
       };
     });
     setBbInput("");setBbPreview(null);
@@ -1887,6 +1933,50 @@ function App(){
         </div>}
       </div>
 
+      {/* ════ ДРАКОНЧИК ════ */}
+      {g.sprintStarted&&(()=>{
+        const dr=g.dragon||{scene:0,lastAdvanceDate:null,finished:false};
+        const sc=DRAGON_SCENES[Math.min(dr.scene,21)]||DRAGON_SCENES[0];
+        const today=new Date().toISOString().slice(0,10);
+        const isDayOff=g.isDayOff;
+        const advancedToday=dr.lastAdvanceDate===today;
+        const progressPct=Math.round(dr.scene/21*100);
+        return <div style={{background:"#161921",border:"1px solid #252a35",borderRadius:14,padding:"16px",textAlign:"center",position:"relative",overflow:"hidden"}}>
+          {/* Фонова смужка прогресу */}
+          <div style={{position:"absolute",bottom:0,left:0,height:3,width:progressPct+"%",background:"linear-gradient(90deg,#c8a840,#f0d070)",borderRadius:3,transition:"width 0.6s"}}/>
+          <div style={{fontFamily:"monospace",fontSize:8,letterSpacing:"0.18em",color:"#555",textTransform:"uppercase",marginBottom:10}}>🐲 Дракончик · сцена {dr.scene}/21</div>
+          {/* Великий емодзі */}
+          <div className={dragonAnim==="advance"?"dragon-advance":dragonAnim==="retreat"?"dragon-retreat":isDayOff?"dragon-dayoff":""}
+            style={{fontSize:64,lineHeight:1,marginBottom:8,transition:"all 0.3s"}}>
+            {sc.e}
+          </div>
+          {/* Назва сцени */}
+          <div style={{fontSize:13,fontWeight:700,color:dragonAnim==="retreat"?"#e05555":dr.scene===21?"#c8a840":"#f0ece4",marginBottom:4,lineHeight:1.3}}>
+            {isDayOff?"🌿 Дракончик відпочиває":dragonAnim==="retreat"?"😢 Дракончик сумує...":sc.label}
+          </div>
+          {/* Статус */}
+          <div style={{fontSize:11,color:"#555",marginBottom:8}}>
+            {advancedToday&&!isDayOff?"✓ Ритуал виконано сьогодні":isDayOff?"Вихідний — сцена не змінюється":"Зроби ритуал — дракончик просунеться вперед"}
+          </div>
+          {/* Прогрес крапки */}
+          <div style={{display:"flex",gap:3,justifyContent:"center",flexWrap:"wrap",maxWidth:220,margin:"0 auto"}}>
+            {Array.from({length:21},(_,i)=>{
+              const done=i+1<=dr.scene;
+              const curr=i+1===dr.scene;
+              const wk=Math.ceil((i+1)/7);
+              const wkColors=["#c8a840","#4a8fd4","#4ab870"];
+              return <div key={i} style={{width:curr?12:8,height:curr?12:8,borderRadius:"50%",
+                background:done?wkColors[wk-1]:"#1e2028",
+                border:curr?"2px solid "+wkColors[wk-1]:"none",
+                transition:"all 0.3s",
+                boxShadow:curr?"0 0 6px "+wkColors[wk-1]:"none",
+              }}/>;
+            })}
+          </div>
+          {dr.scene===21&&<div style={{marginTop:10,fontSize:12,color:"#c8a840",fontWeight:700}}>🏆 Дракончик долетів! Спринт завершено з успіхом!</div>}
+        </div>;
+      })()}
+
       {!g.sprintStarted
         ?<div style={{background:"rgba(200,168,64,0.06)",border:"1px solid rgba(200,168,64,0.25)",borderRadius:12,padding:"20px 16px",textAlign:"center"}}>
           <div style={{fontSize:14,fontWeight:700,color:"#c8a840",marginBottom:6}}>Спринт #{(g.sprintNum||1)} не розпочато</div>
@@ -2191,7 +2281,21 @@ function App(){
               }
             </div>
             <button disabled={!timerDone}
-              onClick={()=>{upd(p=>({...p,dayPhase:"work"}));setTimerLeft(null);setTimerDone(false);}}
+              onClick={()=>{
+                const today=new Date().toISOString().slice(0,10);
+                upd(p=>{
+                  const dr=p.dragon||{scene:0,lastAdvanceDate:null,finished:false};
+                  const alreadyAdvanced=dr.lastAdvanceDate===today;
+                  const newScene=alreadyAdvanced?dr.scene:Math.min(21,dr.scene+1);
+                  return{...p,dayPhase:"work",
+                    dragon:{...dr,scene:newScene,lastAdvanceDate:today,finished:newScene===21}
+                  };
+                });
+                setTimerLeft(null);setTimerDone(false);
+                const today2=new Date().toISOString().slice(0,10);
+                const dr=g.dragon||{scene:0,lastAdvanceDate:null};
+                if(dr.lastAdvanceDate!==today2){setDragonAnim("advance");setTimeout(()=>setDragonAnim(null),900);}
+              }}
               style={{width:"100%",background:timerDone?"rgba(74,143,212,0.15)":"rgba(255,255,255,0.03)",border:"1px solid "+(timerDone?"rgba(74,143,212,0.5)":"#1e2028"),borderRadius:8,padding:"12px",color:timerDone?"#4a8fd4":"#333",fontSize:14,fontWeight:700,cursor:timerDone?"pointer":"not-allowed",transition:"all 0.3s"}}>
               ⚡ Починаю роботу {timerDone?"→":"(зачекай таймер)"}
             </button>
