@@ -391,6 +391,8 @@ function App(){
   const [exchangeAmt,setExchangeAmt]=useState("");
   // Shop accordion
   const [shopPurchasesOpen,setShopPurchasesOpen]=useState(false);
+  // Home screen collapsible sections
+  const [homeOpen,setHomeOpen]=useState({sprint:true,time:false,spoons:false,constants:false,stats:false,day:false,break:false,tomorrow:false,nav:false});
   // Quests grouping
   const [questsGroupBy,setQuestsGroupBy]=useState("none"); // "none" | "notion" | "proj"
   // History
@@ -1891,9 +1893,15 @@ function App(){
           <div style={{fontSize:12,color:"#666",lineHeight:1.7,marginBottom:16}}>Сплануй 3 проекти на 3 тижні<br/>методом зворотного планування</div>
           <button style={S.gold} onClick={startPlan}>🚀 Запланувати спринт</button>
         </div>
-        :<div style={{background:"#161921",border:"1px solid #252a35",borderRadius:12,padding:"14px 16px"}}>
-          <div style={S.cl}>Спринт #{g.sprintNum||1} <span style={{color:"#a08830",fontWeight:600}}>· {sprintRange(g.sprintStartDate)}</span></div><div style={{fontSize:10,color:"#888",fontFamily:"monospace",marginTop:2}}>Тиждень {cw}/3 · <span style={{color:"#a08830",fontWeight:600}}>{weekRange(g.sprintStartDate,cw)}</span></div>
-          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+        :<div style={{background:"#161921",border:"1px solid #252a35",borderRadius:12,overflow:"hidden"}}>
+          <button onClick={()=>setHomeOpen(p=>({...p,sprint:!p.sprint}))} style={{width:"100%",display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 16px",background:"transparent",border:"none",color:"#f0ece4",cursor:"pointer"}}>
+            <div>
+              <div style={{fontFamily:"monospace",fontSize:9,letterSpacing:"0.15em",color:"#555",textTransform:"uppercase"}}>🚀 Спринт #{g.sprintNum||1} · {sprintRange(g.sprintStartDate)}</div>
+              <div style={{fontSize:10,color:"#888",fontFamily:"monospace",marginTop:2}}>Тиждень {cw}/3 · {weekRange(g.sprintStartDate,cw)} · {dc}/{tc} квестів</div>
+            </div>
+            <span style={{fontSize:14,color:"#555"}}>{homeOpen.sprint?"▲":"▼"}</span>
+          </button>
+          {homeOpen.sprint&&<div style={{padding:"0 16px 14px",display:"flex",flexDirection:"column",gap:8}}>
             {PROJECTS.map(p=>{const proj=g.projects[p.id];const wq=proj.weeks[cw-1].quests;const done=wq.filter(q=>q.done).length;const gk=proj.gradeKeys[cw-1];
               return <div key={p.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",borderRadius:8,background:p.bg,border:"1px solid "+p.border}}>
                 <div style={{fontWeight:700,color:p.color,fontSize:13,minWidth:28}}>{p.short}</div>
@@ -1901,13 +1909,17 @@ function App(){
                 {wq.length>0&&<div style={{fontFamily:"monospace",fontSize:11,color:gk?gradeColors[gk]:p.color,flexShrink:0}}>{gk?gradeEmoji[gk]:done+"/"+wq.length}</div>}
               </div>;
             })}
-          </div>
+          </div>}
         </div>
       }
 
       {/* ════ ПРОГРЕС ЧАСУ ════ */}
-      {g.sprintStarted&&effectiveSprintDay&&<div style={{background:"#161921",border:"1px solid #252a35",borderRadius:12,padding:"14px 16px"}}>
-        <div style={{fontFamily:"monospace",fontSize:9,letterSpacing:"0.15em",color:"#555",textTransform:"uppercase",marginBottom:12}}>⏱ Прогрес спринту</div>
+      {g.sprintStarted&&effectiveSprintDay&&<div style={{background:"#161921",border:"1px solid #252a35",borderRadius:12,overflow:"hidden"}}>
+        <button onClick={()=>setHomeOpen(p=>({...p,time:!p.time}))} style={{width:"100%",display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 16px",background:"transparent",border:"none",color:"#f0ece4",cursor:"pointer"}}>
+          <div style={{fontFamily:"monospace",fontSize:9,letterSpacing:"0.15em",color:"#555",textTransform:"uppercase"}}>⏱ Прогрес спринту · {effectiveSprintDay}/21 · {sprintDaysLeft} дн. лишилось</div>
+          <span style={{fontSize:14,color:"#555"}}>{homeOpen.time?"▲":"▼"}</span>
+        </button>
+        {homeOpen.time&&<div style={{padding:"0 16px 14px"}}>
 
         {/* 3 тижні — крапки-дні */}
         <div style={{marginBottom:14}}>
@@ -1981,6 +1993,7 @@ function App(){
             </div>;
           })}
         </div>
+        </div>}
       </div>}
 
       {/* ════ ФАСОЛИНИ (Spoon Theory) ════ */}
@@ -1988,11 +2001,12 @@ function App(){
         const sp=g.spoons?.current??10;
         const mx=g.spoons?.max??10;
         const low=sp<5;
-        return <div style={{background:"#161921",border:"1px solid "+(low?"rgba(212,128,74,0.5)":"#252a35"),borderRadius:12,padding:"14px 16px"}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-            <div style={{fontFamily:"monospace",fontSize:9,letterSpacing:"0.15em",color:low?"#d4804a":"#c8a840",textTransform:"uppercase"}}>🫘 Фасолини · ресурс дня</div>
-            <div style={{fontFamily:"monospace",fontSize:13,fontWeight:700,color:low?"#d4804a":"#4ab870"}}>{sp}/{mx}{low?" ⚠️":""}</div>
-          </div>
+        return <div style={{background:"#161921",border:"1px solid "+(low?"rgba(212,128,74,0.5)":"#252a35"),borderRadius:12,overflow:"hidden"}}>
+          <button onClick={()=>setHomeOpen(p=>({...p,spoons:!p.spoons}))} style={{width:"100%",display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 16px",background:"transparent",border:"none",color:"#f0ece4",cursor:"pointer"}}>
+            <div style={{fontFamily:"monospace",fontSize:9,letterSpacing:"0.15em",color:low?"#d4804a":"#c8a840",textTransform:"uppercase"}}>🫘 Фасолини · {sp}/{mx}{low?" ⚠️":""}</div>
+            <span style={{fontSize:14,color:"#555"}}>{homeOpen.spoons?"▲":"▼"}</span>
+          </button>
+          {homeOpen.spoons&&<div style={{padding:"0 16px 14px"}}>
           {/* Візуалізація бобів */}
           <div style={{display:"flex",gap:4,marginBottom:12}}>
             {Array.from({length:mx},(_,i)=><div key={i} style={{
@@ -2034,20 +2048,20 @@ function App(){
               {btn.label}
             </button>)}
           </div>
+          </div>}
         </div>;
       })()}
 
       {/* ════ ЩОДЕННІ КОНСТАНТИ на Домі ════ */}
-      <button onClick={()=>setScreen("habits")} style={{width:"100%",background:"#161921",border:"1px solid #252a35",borderRadius:12,padding:"14px 16px",textAlign:"left",color:"#f0ece4"}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-          <div style={{fontFamily:"monospace",fontSize:9,letterSpacing:"0.15em",color:"#c8a840",textTransform:"uppercase"}}>🔁 Константи</div>
-          <div style={{display:"flex",alignItems:"center",gap:8}}>
-            <div style={{fontSize:11,color:g.dailyHabits.length===HABITS.length?"#4ab870":"#555",fontFamily:"monospace",fontWeight:700}}>
-              {g.dailyHabits.length}/{HABITS.length}
-            </div>
-            <div style={{fontSize:10,color:"#4a8fd4"}}>→</div>
-          </div>
+      <div style={{background:"#161921",border:"1px solid #252a35",borderRadius:12,overflow:"hidden"}}>
+        <div style={{display:"flex",alignItems:"center"}}>
+          <button onClick={()=>setHomeOpen(p=>({...p,constants:!p.constants}))} style={{flex:1,display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 16px",background:"transparent",border:"none",color:"#f0ece4",cursor:"pointer",textAlign:"left"}}>
+            <div style={{fontFamily:"monospace",fontSize:9,letterSpacing:"0.15em",color:"#c8a840",textTransform:"uppercase"}}>🔁 Константи · {g.dailyHabits.length}/{HABITS.length}</div>
+            <span style={{fontSize:14,color:"#555"}}>{homeOpen.constants?"▲":"▼"}</span>
+          </button>
+          <button onClick={()=>setScreen("habits")} style={{padding:"12px",background:"transparent",border:"none",color:"#4a8fd4",fontSize:11,cursor:"pointer",borderLeft:"1px solid #252a35"}}>→</button>
         </div>
+        {homeOpen.constants&&<div style={{padding:"0 14px 14px"}}>
         {/* 4 картки звичок */}
         <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6,marginBottom:8}}>
           {HABITS.map(h=>{
@@ -2091,7 +2105,8 @@ function App(){
           <div style={{fontSize:9,color:"#333",fontFamily:"monospace"}}>7 днів тому</div>
           <div style={{fontSize:9,color:"#555",fontFamily:"monospace"}}>сьогодні</div>
         </div>
-      </button>
+        </div>}
+      </div>
 
       {/* Статистика */}
       {(archive.length>0||g.sprintStarted)&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:6}}>
@@ -2110,18 +2125,22 @@ function App(){
         const ph=g.dayPhase||"ritual";
         const wt=g.workType||null;
         const fmtTimer=s=>Math.floor(s/60)+":"+(s%60).toString().padStart(2,"0");
-        return <div style={{background:"rgba(255,255,255,0.02)",border:"1px solid #1e2230",borderRadius:12,padding:"14px 16px"}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-            <div style={{fontSize:10,color:"#444",fontFamily:"monospace",textTransform:"uppercase",letterSpacing:"0.1em"}}>Порядок дня</div>
-            <div style={{display:"flex",alignItems:"center",gap:8}}>
-              <button onClick={toggleDayOff} style={{fontSize:10,padding:"3px 10px",borderRadius:10,border:"1px solid "+(g.isDayOff?"rgba(184,122,219,0.5)":"#252a35"),background:g.isDayOff?"rgba(184,122,219,0.15)":"transparent",color:g.isDayOff?"#b87adb":"#444",cursor:"pointer",fontWeight:g.isDayOff?700:400}}>
-                {g.isDayOff?"🌿 Вихідний":"☀️ Вихідний?"}
-              </button>
+        return <div style={{background:"rgba(255,255,255,0.02)",border:"1px solid #1e2230",borderRadius:12,overflow:"hidden"}}>
+          <button onClick={()=>setHomeOpen(p=>({...p,day:!p.day}))} style={{width:"100%",display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 16px",background:"transparent",border:"none",color:"#f0ece4",cursor:"pointer"}}>
+            <div style={{display:"flex",alignItems:"center",gap:10}}>
+              <div style={{fontSize:10,color:"#444",fontFamily:"monospace",textTransform:"uppercase",letterSpacing:"0.1em"}}>Порядок дня</div>
               <div style={{display:"flex",gap:4}}>
                 {["ritual","work","flow"].map((p,i)=><div key={p} style={{width:8,height:8,borderRadius:"50%",background:ph===p?"#c8a840":["ritual","work","flow"].indexOf(ph)>i?"#4ab870":"#2a2820"}}/>)}
               </div>
             </div>
-          </div>
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <button onClick={e=>{e.stopPropagation();toggleDayOff();}} style={{fontSize:10,padding:"3px 10px",borderRadius:10,border:"1px solid "+(g.isDayOff?"rgba(184,122,219,0.5)":"#252a35"),background:g.isDayOff?"rgba(184,122,219,0.15)":"transparent",color:g.isDayOff?"#b87adb":"#444",cursor:"pointer",fontWeight:g.isDayOff?700:400}}>
+                {g.isDayOff?"🌿 Вихідний":"☀️ Вихідний?"}
+              </button>
+              <span style={{fontSize:14,color:"#555"}}>{homeOpen.day?"▲":"▼"}</span>
+            </div>
+          </button>
+          {homeOpen.day&&<div style={{padding:"0 16px 14px"}}>
 
           {/* ── Вихідний режим ── */}
           {g.isDayOff&&<>
@@ -2216,6 +2235,7 @@ function App(){
               🎨 Перейти до Потоку
             </button>
           </>}
+          </div>}
         </div>;
       })()}
 
@@ -2223,12 +2243,16 @@ function App(){
       {(()=>{
         const breaks=(g.breaks||[]).slice().sort((a,b)=>b.from.localeCompare(a.from));
         const diffDays=(a,b)=>Math.round((new Date(b)-new Date(a))/86400000)+1;
-        return <div style={{background:"rgba(155,89,182,0.05)",border:"1px solid rgba(155,89,182,0.2)",borderRadius:12,padding:"14px 16px"}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:breaks.length>0?12:0}}>
-            <div style={{fontSize:10,color:"#9b59b6",fontFamily:"monospace",textTransform:"uppercase",letterSpacing:"0.1em"}}>☕ Перерва в роботі</div>
-            <button onClick={()=>{setBreakForm({from:"",to:"",note:""});setShowBreakModal(true);}}
-              style={{fontSize:11,color:"#9b59b6",background:"rgba(155,89,182,0.1)",border:"1px solid rgba(155,89,182,0.3)",borderRadius:8,padding:"4px 12px",cursor:"pointer"}}>+ Додати</button>
-          </div>
+        return <div style={{background:"rgba(155,89,182,0.05)",border:"1px solid rgba(155,89,182,0.2)",borderRadius:12,overflow:"hidden"}}>
+          <button onClick={()=>setHomeOpen(p=>({...p,break:!p.break}))} style={{width:"100%",display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 16px",background:"transparent",border:"none",color:"#f0ece4",cursor:"pointer"}}>
+            <div style={{fontSize:10,color:"#9b59b6",fontFamily:"monospace",textTransform:"uppercase",letterSpacing:"0.1em"}}>☕ Перерва в роботі {breaks.length>0?"· "+breaks.length:""}</div>
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <button onClick={e=>{e.stopPropagation();setBreakForm({from:"",to:"",note:""});setShowBreakModal(true);}}
+                style={{fontSize:11,color:"#9b59b6",background:"rgba(155,89,182,0.1)",border:"1px solid rgba(155,89,182,0.3)",borderRadius:8,padding:"4px 12px",cursor:"pointer"}}>+ Додати</button>
+              <span style={{fontSize:14,color:"#555"}}>{homeOpen.break?"▲":"▼"}</span>
+            </div>
+          </button>
+          {homeOpen.break&&<div style={{padding:"0 16px 14px"}}>
           {breaks.length===0&&<div style={{fontSize:11,color:"#333",marginTop:6}}>Немає записаних перерв</div>}
           {breaks.map(br=><div key={br.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:"1px solid #1a1a1a"}}>
             <div style={{flex:1}}>
@@ -2238,14 +2262,19 @@ function App(){
             <button onClick={()=>upd(p=>({...p,breaks:p.breaks.filter(x=>x.id!==br.id)}))}
               style={{fontSize:12,color:"#333",background:"transparent",border:"none",cursor:"pointer",padding:"4px"}}>×</button>
           </div>)}
+          </div>}
         </div>;
       })()}
 
       {/* ══ ПІДГОТОВКА ДО ЗАВТРА ══ */}
       {(()=>{
         const wt=g.workType||null;
-        return <div style={{background:"rgba(255,255,255,0.02)",border:"1px solid #1e2230",borderRadius:12,padding:"14px 16px"}}>
-          <div style={{fontSize:10,color:"#444",fontFamily:"monospace",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:12}}>🌙 Підготовка до завтра</div>
+        return <div style={{background:"rgba(255,255,255,0.02)",border:"1px solid #1e2230",borderRadius:12,overflow:"hidden"}}>
+          <button onClick={()=>setHomeOpen(p=>({...p,tomorrow:!p.tomorrow}))} style={{width:"100%",display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 16px",background:"transparent",border:"none",color:"#f0ece4",cursor:"pointer"}}>
+            <div style={{fontSize:10,color:"#444",fontFamily:"monospace",textTransform:"uppercase",letterSpacing:"0.1em"}}>🌙 Підготовка до завтра{g.tomorrowPlan?" ✓":""}</div>
+            <span style={{fontSize:14,color:"#555"}}>{homeOpen.tomorrow?"▲":"▼"}</span>
+          </button>
+          {homeOpen.tomorrow&&<div style={{padding:"0 16px 14px"}}>
           <div style={{fontSize:11,color:"#555",marginBottom:10,lineHeight:1.5}}>Заповни ввечері — щоб вранці не думати</div>
           <textarea
             value={g.tomorrowPlan||""}
@@ -2264,9 +2293,16 @@ function App(){
               <div style={{fontSize:9,color:wt===opt.id?opt.c+"99":"#333",marginTop:2}}>{opt.sub}</div>
             </button>)}
           </div>
+          </div>}
         </div>;
       })()}
 
+      <div style={{background:"#161921",border:"1px solid #252a35",borderRadius:12,overflow:"hidden"}}>
+        <button onClick={()=>setHomeOpen(p=>({...p,nav:!p.nav}))} style={{width:"100%",display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 16px",background:"transparent",border:"none",color:"#f0ece4",cursor:"pointer"}}>
+          <div style={{fontSize:10,color:"#444",fontFamily:"monospace",textTransform:"uppercase",letterSpacing:"0.1em"}}>🗂 Навігація та налаштування</div>
+          <span style={{fontSize:14,color:"#555"}}>{homeOpen.nav?"▲":"▼"}</span>
+        </button>
+        {homeOpen.nav&&<div style={{padding:"0 14px 14px",display:"flex",flexDirection:"column",gap:8}}>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
         {[{e:"🌅",l:"Ранковий ритуал",d:"Введи Body Battery",sc:"morning"},{e:"📋",l:"Квести сьогодні",d:tc?dc+"/"+tc+" виконано":"Обрати з тижня",sc:"quests"},{e:"🆘",l:"Мікро-режим",d:g.microDone.length+"/8",sc:"micro"},{e:"🌊",l:"Потік",d:(g.flowDone||[]).length+"/"+FLOW.length,sc:"flow"},{e:"🛒",l:"Крамниця",d:g.mana+" мани",sc:"shop"}].map(q=><button key={q.sc} onClick={()=>setScreen(q.sc)} style={{background:"rgba(255,255,255,0.03)",border:"1px solid #252a35",borderRadius:12,padding:"15px 12px",textAlign:"left",color:"#f0ece4",display:"flex",flexDirection:"column",gap:4}}>
           <span style={{fontSize:22}}>{q.e}</span><span style={{fontWeight:700,fontSize:14}}>{q.l}</span><span style={{fontSize:11,color:"#555"}}>{q.d}</span>
@@ -2306,6 +2342,8 @@ function App(){
         </button>
         <input ref={importRef} type="file" accept=".json" style={{display:"none"}} onChange={importData}/>
         <button onClick={()=>setShowReset(true)} style={{background:"transparent",border:"1px solid #2a1515",borderRadius:10,padding:"12px",color:"#555",fontSize:13,gridColumn:"1/-1"}}>⚠️ Повне скидання</button>
+      </div>
+        </div>}
       </div>
     </div>}
 
@@ -2886,28 +2924,7 @@ function App(){
         <button onClick={toggleDayOff} style={{fontSize:11,color:"#666",background:"transparent",border:"1px solid #333",borderRadius:8,padding:"5px 10px",cursor:"pointer"}}>Скасувати</button>
       </div>}
 
-      {/* ══ РИТУАЛ ЗАПУСКУ ══ */}
-      <div style={{background:ritualOk?"rgba(74,184,112,0.06)":"rgba(200,168,64,0.06)",border:"1px solid "+(ritualOk?"rgba(74,184,112,0.3)":"rgba(200,168,64,0.2)"),borderRadius:12,padding:"12px 14px"}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:ritualOk?0:10}}>
-          <div style={{fontFamily:"monospace",fontSize:9,letterSpacing:"0.15em",textTransform:"uppercase",color:ritualOk?"#4ab870":"#c8a840"}}>
-            {ritualOk?"🔥 Ритуал виконано":"⚡ Ритуал запуску"}
-          </div>
-          {ritualOk&&<span style={{fontSize:11,color:"#4ab870"}}>✓ готова до квестів</span>}
-        </div>
-        {!ritualOk&&<div style={{display:"flex",flexDirection:"column",gap:6}}>
-          {RITUAL.map(s=><button key={s.id} onClick={()=>upd(p=>({...p,ritual:{...p.ritual,[s.id]:!(p.ritual||{})[s.id]}}))}
-            style={{display:"flex",alignItems:"center",gap:10,background:(g.ritual||{})[s.id]?"rgba(74,184,112,0.1)":"rgba(255,255,255,0.03)",border:"1px solid "+((g.ritual||{})[s.id]?"rgba(74,184,112,0.4)":"#252a35"),borderRadius:8,padding:"9px 12px",color:"#f0ece4",textAlign:"left"}}>
-            <div style={{width:20,height:20,borderRadius:"50%",flexShrink:0,background:(g.ritual||{})[s.id]?"#4ab870":"transparent",border:"2px solid "+((g.ritual||{})[s.id]?"#4ab870":"#333"),display:"flex",alignItems:"center",justifyContent:"center",fontSize:11}}>
-              {(g.ritual||{})[s.id]&&<span style={{color:"#0d0f14",fontWeight:700}}>✓</span>}
-            </div>
-            <span style={{fontSize:14,flexShrink:0}}>{s.emoji}</span>
-            <div>
-              <div style={{fontSize:12,fontWeight:600,color:(g.ritual||{})[s.id]?"#4ab870":"#f0ece4"}}>{s.label}</div>
-              <div style={{fontSize:11,color:"#555",marginTop:1}}>{s.desc}</div>
-            </div>
-          </button>)}
-        </div>}
-      </div>
+
 
       {/* Копі-карточки */}
       {(()=>{
