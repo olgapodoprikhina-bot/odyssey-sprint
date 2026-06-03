@@ -262,6 +262,9 @@ const fresh=()=>({
   projects:{A:freshProject("A"),B:freshProject("B"),C:freshProject("C"),D:freshProject("D")},
   dailyQuests:[],microDone:[],flowDone:[],purchases:[],dayPhase:"ritual",workType:null,
   tomorrowPlan:"",
+  tomorrowDayType:null,   // "work" | "dayoff" | null
+  tomorrowStartTime:"09:00",
+  tomorrowActivity:"",    // що робитиму (робочий) або як проведу (вихідний)
   sprintConstants:[],
   isDayOff:false,dayOffDates:[],
   breaks:[], // [{id, from, to, note}] — перерви між спринтами
@@ -474,9 +477,10 @@ function App(){
   // History
   const [showFlowCheck,setShowFlowCheck]=useState(false);
   const [flowSpoonsInput,setFlowSpoonsInput]=useState(null); // 1-10
-  const [histOpen,setHistOpen]=useState(null); // index of expanded archive entry
-  const [dragonAnim,setDragonAnim]=useState(null); // null | "advance" | "retreat" | "dayoff"
-  const [bankImages,setBankImages]=useState([]); // [{id, data}] з IndexedDB
+  const [histOpen,setHistOpen]=useState(null);
+  const [dragonAnim,setDragonAnim]=useState(null);
+  const [bankImages,setBankImages]=useState([]);
+  const [now,setNow]=useState(new Date()); // для лічильника 9:00
   const tRef=useRef(null);
   // Ritual timer
   const [timerLeft,setTimerLeft]=useState(null);
@@ -523,6 +527,9 @@ function App(){
       if(!('isDayOff' in s)){s.isDayOff=false;}
       if(!s.dayOffDates){s.dayOffDates=[];}
       if(!s.breaks){s.breaks=[];}
+      if(!('tomorrowDayType' in s)){s.tomorrowDayType=null;}
+      if(!s.tomorrowStartTime){s.tomorrowStartTime="09:00";}
+      if(!('tomorrowActivity' in s)){s.tomorrowActivity="";}
       // Міграція dragonBank: якщо старий формат з dataUrl — перенести в IndexedDB
       if(s.dragonBank){
         let needsSave=false;
@@ -588,6 +595,7 @@ function App(){
           isDayOff:false,
           yesterdaySummary:summary,
           dragon:{...dragonPrev,scene:newDragonScene},
+          tomorrowPlan:"",tomorrowDayType:null,tomorrowStartTime:"09:00",tomorrowActivity:"",
           // Скинути виконання мовних сесій (але зберегти блоки і history)
           langSession:{...s.langSession,
             fr:{...s.langSession.fr, todayDone:{}, todayPicks:{}},
@@ -674,6 +682,12 @@ function App(){
   // Завантажити зображення дракончика з IndexedDB при старті
   useEffect(()=>{
     idbGetAll().then(imgs=>setBankImages(imgs)).catch(()=>{});
+  },[]);
+
+  // Годинник — оновлювати щохвилини для лічильника 9:00
+  useEffect(()=>{
+    const t=setInterval(()=>setNow(new Date()),30000);
+    return()=>clearInterval(t);
   },[]);
 
   // Ritual timer
@@ -2029,7 +2043,23 @@ function App(){
           <div style={{position:"absolute",bottom:0,left:0,height:3,width:progressPct+"%",background:"linear-gradient(90deg,#c8a840,#f0d070)",borderRadius:3,transition:"width 0.6s"}}/>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
             <div style={{fontFamily:"monospace",fontSize:8,letterSpacing:"0.18em",color:"#555",textTransform:"uppercase"}}>🐲 Дракончик · сцена {dr.scene}/21</div>
-            <button onClick={()=>setScreen("dragonbank")} style={{fontSize:10,color:"#555",background:"rgba(255,255,255,0.05)",border:"1px solid #252a35",borderRadius:6,padding:"3px 8px",cursor:"pointer"}}>🖼 Банк</button>
+            <div style={{display:"flex",alignItems:"center",gap:6}}>
+              {(()=>{
+                const h=now.getHours(),m=now.getMinutes();
+                const minsNow=h*60+m;
+                const mins9=9*60;
+                const diff=minsNow-mins9;
+                const abs=Math.abs(diff);
+                const hh=Math.floor(abs/60),mm=abs%60;
+                const str=(hh>0?hh+"г ":"")+mm+"хв";
+                return diff<0
+                  ?<span style={{fontSize:9,color:"#c8a840",fontFamily:"monospace"}}>⏰ до 9:00 — {str}</span>
+                  :diff===0
+                  ?<span style={{fontSize:9,color:"#4ab870",fontFamily:"monospace"}}>🎯 9:00 зараз!</span>
+                  :<span style={{fontSize:9,color:"#555",fontFamily:"monospace"}}>+{str} після 9:00</span>;
+              })()}
+              <button onClick={()=>setScreen("dragonbank")} style={{fontSize:10,color:"#555",background:"rgba(255,255,255,0.05)",border:"1px solid #252a35",borderRadius:6,padding:"3px 8px",cursor:"pointer"}}>🖼</button>
+            </div>
           </div>
           {/* Зображення або емодзі */}
           <div className={dragonAnim==="advance"?"dragon-advance":dragonAnim==="retreat"?"dragon-retreat":isDayOff?"dragon-dayoff":""}
@@ -2374,10 +2404,13 @@ function App(){
           {/* ── Фаза: ритуал ── */}
           {!g.isDayOff&&ph==="ritual"&&<>
             {/* Що заплановано вчора */}
-            {g.tomorrowPlan
+            {(g.tomorrowActivity||g.tomorrowPlan)
               ?<div style={{background:"rgba(200,168,64,0.08)",border:"1px solid rgba(200,168,64,0.25)",borderRadius:10,padding:"12px 14px",marginBottom:14}}>
                 <div style={{fontSize:10,color:"#886830",fontFamily:"monospace",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:5}}>🌙 Ти запланувала вчора</div>
-                <div style={{fontSize:14,color:"#f0ece4",fontWeight:600,lineHeight:1.4}}>"{g.tomorrowPlan}"</div>
+                {g.tomorrowDayType&&<div style={{fontSize:11,color:"#c8a840",marginBottom:4}}>
+                  {g.tomorrowDayType==="work"?"💼 Робочий день":"🌿 Вихідний"}{g.tomorrowStartTime?" · старт о "+g.tomorrowStartTime:""}
+                </div>}
+                <div style={{fontSize:14,color:"#f0ece4",fontWeight:600,lineHeight:1.4}}>"{g.tomorrowActivity||g.tomorrowPlan}"</div>
               </div>
               :<div style={{background:"rgba(255,255,255,0.03)",border:"1px solid #1e2028",borderRadius:10,padding:"10px 14px",marginBottom:14,fontSize:12,color:"#444",fontStyle:"italic"}}>
                 Вчора план не заповнено — заповни ввечері 👇
@@ -2488,31 +2521,72 @@ function App(){
 
       {/* ══ ПІДГОТОВКА ДО ЗАВТРА ══ */}
       {(()=>{
-        const wt=g.workType||null;
+        const tt=g.tomorrowDayType||null;
+        const filled=tt&&(g.tomorrowActivity||"").trim();
         return <div style={{background:"rgba(255,255,255,0.02)",border:"1px solid #1e2230",borderRadius:12,overflow:"hidden"}}>
           <button onClick={()=>setHomeOpen(p=>({...p,tomorrow:!p.tomorrow}))} style={{width:"100%",display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 16px",background:"transparent",border:"none",color:"#f0ece4",cursor:"pointer"}}>
-            <div style={{fontSize:10,color:"#444",fontFamily:"monospace",textTransform:"uppercase",letterSpacing:"0.1em"}}>🌙 Підготовка до завтра{g.tomorrowPlan?" ✓":""}</div>
+            <div style={{fontSize:10,color:"#444",fontFamily:"monospace",textTransform:"uppercase",letterSpacing:"0.1em"}}>🌙 Підготовка до завтра{filled?" ✓":""}</div>
             <span style={{fontSize:14,color:"#555"}}>{homeOpen.tomorrow?"▲":"▼"}</span>
           </button>
           {homeOpen.tomorrow&&<div style={{padding:"0 16px 14px"}}>
-          <div style={{fontSize:11,color:"#555",marginBottom:10,lineHeight:1.5}}>Заповни ввечері — щоб вранці не думати</div>
-          <textarea
-            value={g.tomorrowPlan||""}
-            onChange={e=>upd(p=>({...p,tomorrowPlan:e.target.value}))}
-            placeholder="Завтра о 9:00 я починаю з..."
-            rows={2}
-            style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid #252a35",borderRadius:8,padding:"10px 12px",color:"#f0ece4",fontSize:13,resize:"none",lineHeight:1.5,fontFamily:"system-ui,sans-serif",outline:"none",marginBottom:10}}
-          />
-          <div style={{fontSize:10,color:"#555",marginBottom:8,fontFamily:"monospace",textTransform:"uppercase",letterSpacing:"0.08em"}}>Тип роботи</div>
-          <div style={{display:"flex",gap:8}}>
-            {[{id:"digital",e:"🖥️",l:"Цифрова",sub:"CLO3D · фріланс",c:"#4a8fd4",bg:"rgba(74,143,212,0.1)",bc:"rgba(74,143,212,0.4)"},{id:"manual",e:"🧵",l:"Ручна",sub:"Шити · конструювати",c:"#b87adb",bg:"rgba(184,122,219,0.1)",bc:"rgba(184,122,219,0.4)"}].map(opt=><button key={opt.id}
-              onClick={()=>upd(p=>({...p,workType:p.workType===opt.id?null:opt.id}))}
-              style={{flex:1,background:wt===opt.id?opt.bg:"rgba(255,255,255,0.03)",border:"2px solid "+(wt===opt.id?opt.bc:"#252a35"),borderRadius:10,padding:"10px 6px",textAlign:"center",color:wt===opt.id?opt.c:"#555",cursor:"pointer",transition:"all 0.2s"}}>
-              <div style={{fontSize:20,marginBottom:4}}>{opt.e}</div>
-              <div style={{fontSize:12,fontWeight:700}}>{opt.l}</div>
-              <div style={{fontSize:9,color:wt===opt.id?opt.c+"99":"#333",marginTop:2}}>{opt.sub}</div>
-            </button>)}
-          </div>
+            <div style={{fontSize:11,color:"#555",marginBottom:12,lineHeight:1.5}}>Заповни ввечері — щоб вранці не думати</div>
+
+            {/* Крок 1: Тип дня */}
+            <div style={{fontSize:10,color:"#555",fontFamily:"monospace",textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:8}}>Завтра буде...</div>
+            <div style={{display:"flex",gap:8,marginBottom:14}}>
+              {[
+                {id:"work",e:"💼",l:"Робочий день",c:"#4a8fd4",bg:"rgba(74,143,212,0.1)",bc:"rgba(74,143,212,0.4)"},
+                {id:"dayoff",e:"🌿",l:"Вихідний",c:"#4ab870",bg:"rgba(74,184,112,0.1)",bc:"rgba(74,184,112,0.4)"},
+              ].map(opt=><button key={opt.id}
+                onClick={()=>upd(p=>({...p,tomorrowDayType:p.tomorrowDayType===opt.id?null:opt.id}))}
+                style={{flex:1,background:tt===opt.id?opt.bg:"rgba(255,255,255,0.03)",border:"2px solid "+(tt===opt.id?opt.bc:"#252a35"),borderRadius:10,padding:"10px 6px",textAlign:"center",color:tt===opt.id?opt.c:"#555",cursor:"pointer",transition:"all 0.2s"}}>
+                <div style={{fontSize:22,marginBottom:4}}>{opt.e}</div>
+                <div style={{fontSize:12,fontWeight:700}}>{opt.l}</div>
+              </button>)}
+            </div>
+
+            {/* Крок 2: Час початку (тільки якщо обрано тип) */}
+            {tt&&<>
+              <div style={{fontSize:10,color:"#555",fontFamily:"monospace",textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:8}}>
+                {tt==="work"?"О котрій починаю роботу":"О котрій прокидаюсь / починаю день"}
+              </div>
+              <div style={{display:"flex",gap:6,marginBottom:14,flexWrap:"wrap"}}>
+                {(tt==="work"?["07:00","08:00","09:00","10:00","11:00"]:["08:00","09:00","10:00","11:00","12:00"]).map(t=><button key={t}
+                  onClick={()=>upd(p=>({...p,tomorrowStartTime:t}))}
+                  style={{background:g.tomorrowStartTime===t?"rgba(200,168,64,0.2)":"rgba(255,255,255,0.03)",border:"1px solid "+(g.tomorrowStartTime===t?"rgba(200,168,64,0.5)":"#252a35"),borderRadius:8,padding:"6px 12px",color:g.tomorrowStartTime===t?"#c8a840":"#555",fontSize:12,fontWeight:g.tomorrowStartTime===t?700:400,cursor:"pointer"}}>
+                  {t}
+                </button>)}
+              </div>
+
+              {/* Крок 3: Що робитиму */}
+              <div style={{fontSize:10,color:"#555",fontFamily:"monospace",textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:8}}>
+                {tt==="work"?"Головне завдання дня":"Як планую провести вихідний"}
+              </div>
+              <textarea
+                value={g.tomorrowActivity||""}
+                onChange={e=>upd(p=>({...p,tomorrowActivity:e.target.value}))}
+                placeholder={tt==="work"?"О "+g.tomorrowStartTime+" я починаю з...":"Планую відпочити / піти на..."}
+                rows={3}
+                style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid #252a35",borderRadius:8,padding:"10px 12px",color:"#f0ece4",fontSize:13,resize:"none",lineHeight:1.5,fontFamily:"system-ui,sans-serif",outline:"none",marginBottom:10,boxSizing:"border-box"}}
+              />
+            </>}
+
+            {/* Тип роботи (тільки для робочого дня) */}
+            {tt==="work"&&<>
+              <div style={{fontSize:10,color:"#555",fontFamily:"monospace",textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:8}}>Тип роботи</div>
+              <div style={{display:"flex",gap:8}}>
+                {[{id:"digital",e:"🖥️",l:"Цифрова",sub:"CLO3D · фріланс",c:"#4a8fd4",bg:"rgba(74,143,212,0.1)",bc:"rgba(74,143,212,0.4)"},{id:"manual",e:"🧵",l:"Ручна",sub:"Шити · конструювати",c:"#b87adb",bg:"rgba(184,122,219,0.1)",bc:"rgba(184,122,219,0.4)"}].map(opt=>{
+                  const wt=g.workType||null;
+                  return <button key={opt.id}
+                    onClick={()=>upd(p=>({...p,workType:p.workType===opt.id?null:opt.id}))}
+                    style={{flex:1,background:wt===opt.id?opt.bg:"rgba(255,255,255,0.03)",border:"2px solid "+(wt===opt.id?opt.bc:"#252a35"),borderRadius:10,padding:"10px 6px",textAlign:"center",color:wt===opt.id?opt.c:"#555",cursor:"pointer",transition:"all 0.2s"}}>
+                    <div style={{fontSize:20,marginBottom:4}}>{opt.e}</div>
+                    <div style={{fontSize:12,fontWeight:700}}>{opt.l}</div>
+                    <div style={{fontSize:9,color:wt===opt.id?opt.c+"99":"#333",marginTop:2}}>{opt.sub}</div>
+                  </button>;
+                })}
+              </div>
+            </>}
           </div>}
         </div>;
       })()}
