@@ -2115,7 +2115,7 @@ function App(){
           {/* Фонова смужка прогресу */}
           <div style={{position:"absolute",bottom:0,left:0,height:3,width:progressPct+"%",background:"linear-gradient(90deg,#c8a840,#f0d070)",borderRadius:3,transition:"width 0.6s"}}/>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-            <div style={{fontFamily:"monospace",fontSize:8,letterSpacing:"0.18em",color:"#555",textTransform:"uppercase"}}>🐲 Дракончик · сцена {dr.scene}/21</div>
+            <div style={{fontFamily:"monospace",fontSize:9,letterSpacing:"0.15em",color:"#888",textTransform:"uppercase"}}>🐲 Дракончик · сцена {dr.scene}/21</div>
             <div style={{display:"flex",alignItems:"center",gap:6}}>
               {(()=>{
                 const h=now.getHours(),m=now.getMinutes();
@@ -2126,12 +2126,12 @@ function App(){
                 const hh=Math.floor(abs/60),mm=abs%60;
                 const str=(hh>0?hh+"г ":"")+mm+"хв";
                 return diff<0
-                  ?<span style={{fontSize:9,color:"#c8a840",fontFamily:"monospace"}}>⏰ до 9:00 — {str}</span>
+                  ?<span style={{fontSize:10,color:"#c8a840",fontFamily:"monospace",fontWeight:600}}>⏰ до 9:00 — {str}</span>
                   :diff===0
-                  ?<span style={{fontSize:9,color:"#4ab870",fontFamily:"monospace"}}>🎯 9:00 зараз!</span>
-                  :<span style={{fontSize:9,color:"#555",fontFamily:"monospace"}}>+{str} після 9:00</span>;
+                  ?<span style={{fontSize:10,color:"#4ab870",fontFamily:"monospace",fontWeight:700}}>🎯 9:00 зараз!</span>
+                  :<span style={{fontSize:10,color:"#888",fontFamily:"monospace"}}>+{str} після 9:00</span>;
               })()}
-              <button onClick={()=>setScreen("dragonbank")} style={{fontSize:10,color:"#555",background:"rgba(255,255,255,0.05)",border:"1px solid #252a35",borderRadius:6,padding:"3px 8px",cursor:"pointer"}}>🖼</button>
+              <button onClick={()=>setScreen("dragonbank")} style={{fontSize:10,color:"#777",background:"rgba(255,255,255,0.07)",border:"1px solid #333",borderRadius:6,padding:"3px 8px",cursor:"pointer"}}>🖼</button>
             </div>
           </div>
           {/* Зображення або емодзі */}
@@ -2143,11 +2143,11 @@ function App(){
             }
           </div>
           {/* Назва сцени */}
-          <div style={{fontSize:13,fontWeight:700,color:dragonAnim==="retreat"?"#e05555":dr.scene===21?"#c8a840":"#f0ece4",marginBottom:4,lineHeight:1.3}}>
+          <div style={{fontSize:15,fontWeight:700,color:dragonAnim==="retreat"?"#e05555":dr.scene===21?"#c8a840":"#f0ece4",marginBottom:6,lineHeight:1.3}}>
             {isDayOff?"🌿 Дракончик відпочиває":dragonAnim==="retreat"?"😢 Дракончик сумує...":sc.label}
           </div>
           {/* Статус */}
-          <div style={{fontSize:11,color:"#555",marginBottom:8}}>
+          <div style={{fontSize:12,color:advancedToday?"#4ab870":"#aaa",marginBottom:10,fontWeight:advancedToday?600:400}}>
             {isDayOff&&advancedToday?"🌿 Вихідний зарахований — дракончик відпочив і просунувся":
              isDayOff?"🌿 Вихідний":
              advancedToday?"✓ Погодовано сьогодні":
@@ -2164,9 +2164,9 @@ function App(){
               {ok:advancedToday, label:"Погодувала дракончика"},
               {ok:tomorrowFilled,label:"План на завтра"},
             ];
-            return <div style={{display:"flex",gap:6,flexWrap:"wrap",justifyContent:"center",marginBottom:10}}>
-              {checks.map((c,i)=><div key={i} style={{fontSize:10,color:c.ok?"#4ab870":"#444",display:"flex",alignItems:"center",gap:3}}>
-                <span>{c.ok?"✓":"○"}</span><span>{c.label}</span>
+            return <div style={{display:"flex",gap:8,flexWrap:"wrap",justifyContent:"center",marginBottom:12}}>
+              {checks.map((c,i)=><div key={i} style={{fontSize:11,color:c.ok?"#4ab870":"#888",display:"flex",alignItems:"center",gap:4,fontWeight:c.ok?600:400}}>
+                <span style={{fontSize:13}}>{c.ok?"✓":"○"}</span><span>{c.label}</span>
               </div>)}
             </div>;
           })()}
@@ -2191,17 +2191,17 @@ function App(){
                 }}
                 style={{
                   width:"100%",
-                  background:advancedToday?"rgba(255,255,255,0.03)":canFeed?"rgba(200,168,64,0.15)":"rgba(255,255,255,0.03)",
-                  border:"1px solid "+(advancedToday?"#1e2028":canFeed?"rgba(200,168,64,0.5)":"#1e2028"),
-                  borderRadius:10,padding:"11px",
-                  color:advancedToday?"#333":canFeed?"#c8a840":"#333",
+                  background:advancedToday?"rgba(255,255,255,0.03)":canFeed?"rgba(200,168,64,0.15)":"rgba(255,255,255,0.05)",
+                  border:"1px solid "+(advancedToday?"#252a35":canFeed?"rgba(200,168,64,0.6)":"#333"),
+                  borderRadius:10,padding:"12px",
+                  color:advancedToday?"#444":canFeed?"#c8a840":"#666",
                   fontSize:14,fontWeight:700,
                   cursor:(advancedToday||!canFeed)?"default":"pointer",
                   transition:"all 0.3s",
                 }}>
                 {advancedToday?"🐉 Вже погодовано сьогодні":canFeed?"🍖 Погодувати дракончика":"🔒 Погодувати дракончика"}
               </button>
-              {!advancedToday&&!canFeed&&<div style={{fontSize:10,color:"#444",marginTop:5,textAlign:"center"}}>{reason}</div>}
+              {!advancedToday&&!canFeed&&<div style={{fontSize:11,color:"#888",marginTop:6,textAlign:"center"}}>{reason}</div>}
             </div>;
           })()}
           {/* Прогрес крапки */}
