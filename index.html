@@ -488,7 +488,8 @@ function App(){
   const [bankImages,setBankImages]=useState([]);
   const [now,setNow]=useState(new Date());
   const [showRetreatFlash,setShowRetreatFlash]=useState(false);
-  const [showSpoonsReminder,setShowSpoonsReminder]=useState(false); // для лічильника 9:00
+  const [showSpoonsReminder,setShowSpoonsReminder]=useState(false);
+  const [spoonsReminderType,setSpoonsReminderType]=useState("auto"); // "ritual" | "auto" // для лічильника 9:00
   const tRef=useRef(null);
   // Ritual timer
   const [timerLeft,setTimerLeft]=useState(null);
@@ -718,6 +719,7 @@ function App(){
       const last=g.lastSpoonsReminder||0;
       const now=Date.now();
       if(now-last>=REMINDER_INTERVAL){
+        setSpoonsReminderType("auto");
         setShowSpoonsReminder(true);
       }
     };
@@ -2506,8 +2508,10 @@ function App(){
             </div>
             <button disabled={!timerDone}
               onClick={()=>{
-                upd(p=>({...p,dayPhase:"work"}));
+                upd(p=>({...p,dayPhase:"work",lastSpoonsReminder:Date.now()}));
                 setTimerLeft(null);setTimerDone(false);
+                setSpoonsReminderType("ritual");
+                setShowSpoonsReminder(true);
               }}
               style={{width:"100%",background:timerDone?"rgba(74,143,212,0.15)":"rgba(255,255,255,0.03)",border:"1px solid "+(timerDone?"rgba(74,143,212,0.5)":"#1e2028"),borderRadius:8,padding:"12px",color:timerDone?"#4a8fd4":"#333",fontSize:14,fontWeight:700,cursor:timerDone?"pointer":"not-allowed",transition:"all 0.3s"}}>
               ⚡ Починаю роботу {timerDone?"→":"(зачекай таймер)"}
@@ -4271,8 +4275,14 @@ function App(){
           {/* Заголовок */}
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
             <div>
-              <div style={{fontSize:15,fontWeight:700,color:"#f0ece4"}}>🫘 Скільки фасолин зараз?</div>
-              <div style={{fontSize:11,color:"#555",marginTop:2}}>Нагадування кожні 2 години</div>
+              <div style={{fontSize:15,fontWeight:700,color:"#f0ece4"}}>
+                {spoonsReminderType==="ritual"?"🌅 Ранковий запас енергії":"🫘 Скільки фасолин зараз?"}
+              </div>
+              <div style={{fontSize:11,color:"#555",marginTop:2}}>
+                {spoonsReminderType==="ritual"
+                  ?"Ти вказала "+sp+" фасолин на початок дня — актуально?"
+                  :"Нагадування кожні 2 години"}
+              </div>
             </div>
             <button onClick={dismiss} style={{background:"transparent",border:"none",color:"#444",fontSize:22,cursor:"pointer",lineHeight:1}}>×</button>
           </div>
