@@ -578,12 +578,16 @@ function App(){
           questsTotal:s.dailyQuests.length,
           habitsDone:(s.dailyHabits||[]).length,
         };
-        // Dragon: якщо вчора не запустили ритуал (dayPhase залишилась "ritual") — відкат
+        // Dragon: відкат якщо будь-яка з умов не виконана (і не вихідний)
         const dragonPrev=s.dragon||{scene:0,lastAdvanceDate:null,finished:false};
-        const ritualDoneYesterday=dragonPrev.lastAdvanceDate===s.lastActiveDate;
+        const fedToday=dragonPrev.lastAdvanceDate===s.lastActiveDate;
+        const workStarted=s.dayPhase==="work"||s.dayPhase==="flow";
+        const anyQuestDone=(s.dailyQuests||[]).some(q=>q.done);
+        const tomorrowFilled=!!(s.tomorrowDayType&&(s.tomorrowActivity||"").trim());
+        const allConditionsMet=fedToday&&workStarted&&anyQuestDone&&tomorrowFilled;
         let newDragonScene=dragonPrev.scene;
         let dragonEvent=null;
-        if(!s.isDayOff&&!ritualDoneYesterday&&dragonPrev.scene>0){
+        if(!s.isDayOff&&!allConditionsMet&&dragonPrev.scene>0){
           newDragonScene=Math.max(0,dragonPrev.scene-1);
           dragonEvent="retreat";
         } else if(s.isDayOff){
@@ -2093,7 +2097,23 @@ function App(){
              advancedToday?"✓ Погодовано сьогодні":
              "Не забудь погодувати дракончика"}
           </div>
-          {/* Кнопка годування */}
+          {/* Чекліст умов дня */}
+          {!isDayOff&&!advancedToday&&(()=>{
+            const workStarted=g.dayPhase==="work"||g.dayPhase==="flow";
+            const anyQuestDone=(g.dailyQuests||[]).some(q=>q.done);
+            const tomorrowFilled=!!(g.tomorrowDayType&&(g.tomorrowActivity||"").trim());
+            const checks=[
+              {ok:workStarted,   label:"Починаю роботу"},
+              {ok:anyQuestDone,  label:"Хоч один квест"},
+              {ok:advancedToday, label:"Погодувала дракончика"},
+              {ok:tomorrowFilled,label:"План на завтра"},
+            ];
+            return <div style={{display:"flex",gap:6,flexWrap:"wrap",justifyContent:"center",marginBottom:10}}>
+              {checks.map((c,i)=><div key={i} style={{fontSize:10,color:c.ok?"#4ab870":"#444",display:"flex",alignItems:"center",gap:3}}>
+                <span>{c.ok?"✓":"○"}</span><span>{c.label}</span>
+              </div>)}
+            </div>;
+          })()}
           {!isDayOff&&(()=>{
             const workStarted=g.dayPhase==="work"||g.dayPhase==="flow";
             const allQuestsDone=g.dailyQuests.length>0&&g.dailyQuests.every(q=>q.done);
