@@ -79,6 +79,16 @@ button{cursor:pointer;font-family:inherit}
 .dragon-flash-overlay{position:fixed;inset:0;z-index:9999;background:rgba(180,30,30,0.92);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;animation:flashIn 1.8s ease forwards;pointer-events:none;}
 .dragon-flash-text{font-size:72px;font-weight:900;color:#fff;font-family:monospace;animation:flashText 1.8s ease forwards;text-shadow:0 0 40px rgba(255,100,100,0.8);}
 .dragon-flash-sub{font-size:18px;color:rgba(255,255,255,0.8);font-family:monospace;letter-spacing:0.15em;text-transform:uppercase;animation:flashText 1.8s ease forwards;}
+@keyframes bonusIn{0%{opacity:0;transform:translateY(60px) scale(0.7)}20%{opacity:1;transform:translateY(0) scale(1.08)}35%{transform:scale(1)}90%{opacity:1;transform:scale(1)}100%{opacity:0;transform:translateY(-30px) scale(0.9)}}
+@keyframes bonusStars{0%{opacity:0;transform:scale(0) rotate(-20deg)}25%{opacity:1;transform:scale(1.2) rotate(5deg)}50%{transform:scale(1) rotate(0deg)}90%{opacity:1}100%{opacity:0}}
+@keyframes bonusGold{0%,100%{text-shadow:0 0 0px #c8a840}40%{text-shadow:0 0 40px #f0d070,0 0 80px #c8a840}}
+@keyframes bonusRainbow{0%{filter:hue-rotate(0deg) drop-shadow(0 0 20px #f0d070)}50%{filter:hue-rotate(60deg) drop-shadow(0 0 40px #fff)}100%{filter:hue-rotate(0deg) drop-shadow(0 0 20px #f0d070)}}
+@keyframes particle{0%{opacity:1;transform:translate(0,0) scale(1)}100%{opacity:0;transform:translate(var(--tx),var(--ty)) scale(0)}}
+.bonus-overlay{position:fixed;inset:0;z-index:9998;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;pointer-events:none;}
+.bonus-card{background:rgba(13,15,20,0.95);border-radius:24px;padding:28px 36px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:8px;animation:bonusIn 2.4s ease forwards;border:2px solid var(--bc);}
+.bonus-mana{font-size:56px;font-weight:900;font-family:monospace;animation:bonusGold 1s ease infinite;color:var(--mc)}
+.bonus-perfect .bonus-mana{animation:bonusGold 0.6s ease infinite,bonusRainbow 1s ease infinite}
+.bonus-emoji{font-size:52px;animation:bonusStars 2.4s ease forwards;}
 </style>
 </head>
 <body><div id="root"></div>
@@ -489,7 +499,8 @@ function App(){
   const [now,setNow]=useState(new Date());
   const [showRetreatFlash,setShowRetreatFlash]=useState(false);
   const [showSpoonsReminder,setShowSpoonsReminder]=useState(false);
-  const [spoonsReminderType,setSpoonsReminderType]=useState("auto"); // "ritual" | "auto" // для лічильника 9:00
+  const [spoonsReminderType,setSpoonsReminderType]=useState("auto");
+  const [startBonus,setStartBonus]=useState(null); // {level,mana} | null // для лічильника 9:00
   const tRef=useRef(null);
   // Ritual timer
   const [timerLeft,setTimerLeft]=useState(null);
@@ -772,6 +783,18 @@ function App(){
     toast_(c.emoji+" "+c.label+" x"+c.mult+" · 🫘 "+spoonsNum,c.color);
   };
 
+  // Розрахунок бонусу за старт о 9:00
+  const calcStartBonus=(now)=>{
+    const h=now.getHours(),m=now.getMinutes();
+    const mins=h*60+m;
+    const target=9*60;
+    const diff=Math.abs(mins-target);
+    if(diff<=5)  return {level:"perfect", mana:50, emoji:"🎯", label:"ІДЕАЛЬНИЙ СТАРТ!", sublabel:"Рівно о 9:00!", color:"#f0d070", mc:"#f0d070", bc:"#c8a840"};
+    if(diff<=15) return {level:"great",   mana:25, emoji:"⭐", label:"ЧУДОВИЙ СТАРТ!",  sublabel:"±15 хвилин від 9:00", color:"#4ab870", mc:"#4ab870", bc:"#4ab870"};
+    if(diff<=30) return {level:"good",    mana:10, emoji:"👍", label:"ХОРОШИЙ СТАРТ!",  sublabel:"±30 хвилин від 9:00", color:"#4a8fd4", mc:"#4a8fd4", bc:"#4a8fd4"};
+    if(diff<=60) return {level:"ok",      mana:0,  emoji:"✓",  label:"Молодець!",        sublabel:"В межах години від 9:00", color:"#888", mc:"#888", bc:"#333"};
+    return null; // поза вікном — без анімації
+  };
   const ritualOk=Object.values(g.ritual||{}).every(Boolean);
   const finishRitual=()=>{setShowRitual(false);if(pendingQ)addDaily(pendingQ.name,pendingQ.zone,pendingQ.projId);toast_("🔥 Ритуал виконано!","#4ab870");};
 
@@ -2508,10 +2531,17 @@ function App(){
             </div>
             <button disabled={!timerDone}
               onClick={()=>{
-                upd(p=>({...p,dayPhase:"work",lastSpoonsReminder:Date.now()}));
+                const bonus=calcStartBonus(new Date());
+                upd(p=>({...p,dayPhase:"work",lastSpoonsReminder:Date.now(),
+                  mana:bonus&&bonus.mana>0?p.mana+bonus.mana:p.mana,
+                }));
                 setTimerLeft(null);setTimerDone(false);
                 setSpoonsReminderType("ritual");
                 setShowSpoonsReminder(true);
+                if(bonus){
+                  setStartBonus(bonus);
+                  setTimeout(()=>setStartBonus(null),2600);
+                }
               }}
               style={{width:"100%",background:timerDone?"rgba(74,143,212,0.15)":"rgba(255,255,255,0.03)",border:"1px solid "+(timerDone?"rgba(74,143,212,0.5)":"#1e2028"),borderRadius:8,padding:"12px",color:timerDone?"#4a8fd4":"#333",fontSize:14,fontWeight:700,cursor:timerDone?"pointer":"not-allowed",transition:"all 0.3s"}}>
               ⚡ Починаю роботу {timerDone?"→":"(зачекай таймер)"}
@@ -4259,6 +4289,18 @@ function App(){
         <span style={{fontSize:17}}>{t.e}</span><span style={{fontSize:8}}>{t.l}</span>
       </button>)}
     </nav>
+
+    {/* ════ БОНУС ЗА СТАРТ О 9:00 ════ */}
+    {startBonus&&<div className="bonus-overlay">
+      <div className={`bonus-card${startBonus.level==="perfect"?" bonus-perfect":""}`}
+        style={{"--bc":startBonus.bc,"--mc":startBonus.mc}}>
+        <div className="bonus-emoji">{startBonus.emoji}</div>
+        <div style={{fontSize:20,fontWeight:900,color:startBonus.color,letterSpacing:"0.05em"}}>{startBonus.label}</div>
+        <div style={{fontSize:13,color:"#888"}}>{startBonus.sublabel}</div>
+        {startBonus.mana>0&&<div className="bonus-mana" style={{"--mc":startBonus.mc}}>+{startBonus.mana} ✨</div>}
+        {startBonus.mana>0&&<div style={{fontSize:12,color:"#555",fontFamily:"monospace"}}>мана зарахована</div>}
+      </div>
+    </div>}
 
     {/* ════ НАГАДУВАННЯ ПРО ФАСОЛИНИ ════ */}
     {showSpoonsReminder&&(()=>{
