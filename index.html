@@ -289,6 +289,7 @@ const fresh=()=>({
   carryoverPool:[], // [{...quest, projId, fromWeek, fromSprint}] — квести перенесені зі старого спринту
   weekReflections:[{},{},{}],
   spoons:{current:10,max:10,lastDate:null},
+  lastSpoonsReminder:null, // timestamp останнього нагадування
   todoist:{token:"",projects:{A:"",B:"",C:"",inbox:""},lastSync:null},
   notion:{token:"",dbId:"",lastSync:null,projList:[]},
   langSession:{
@@ -486,7 +487,8 @@ function App(){
   const [dragonAnim,setDragonAnim]=useState(null);
   const [bankImages,setBankImages]=useState([]);
   const [now,setNow]=useState(new Date());
-  const [showRetreatFlash,setShowRetreatFlash]=useState(false); // для лічильника 9:00
+  const [showRetreatFlash,setShowRetreatFlash]=useState(false);
+  const [showSpoonsReminder,setShowSpoonsReminder]=useState(false); // для лічильника 9:00
   const tRef=useRef(null);
   // Ritual timer
   const [timerLeft,setTimerLeft]=useState(null);
@@ -523,6 +525,7 @@ function App(){
       // Міграція: weekReflections
       if(!s.weekReflections){s.weekReflections=[{},{},{}];}
       if(!s.spoons){s.spoons={current:10,max:10,lastDate:null};}
+      if(!('lastSpoonsReminder' in s)){s.lastSpoonsReminder=null;}
       if(!s.carryoverPool){s.carryoverPool=[];}
       if(!s.flowDone){s.flowDone=[];}
       if(!s.dayPhase||s.dayPhase==="buffer"){s.dayPhase="ritual";}
@@ -706,6 +709,24 @@ function App(){
     const t=setInterval(()=>setNow(new Date()),30000);
     return()=>clearInterval(t);
   },[]);
+
+  // Нагадування про фасолини кожні 2 години
+  const REMINDER_INTERVAL=2*60*60*1000; // 2 год в мс
+  useEffect(()=>{
+    if(!loaded)return;
+    const check=()=>{
+      const last=g.lastSpoonsReminder||0;
+      const now=Date.now();
+      if(now-last>=REMINDER_INTERVAL){
+        setShowSpoonsReminder(true);
+      }
+    };
+    // Перевірити одразу при вході (якщо пройшло 2+ год)
+    check();
+    // Потім кожні 5 хвилин перевіряти
+    const t=setInterval(check,5*60*1000);
+    return()=>clearInterval(t);
+  },[loaded,g.lastSpoonsReminder]);
 
   // Ritual timer
   const playBeep=()=>{try{const ctx=new(window.AudioContext||window.webkitAudioContext)();[[660,0],[880,0.2],[1047,0.4]].forEach(([freq,delay])=>{const o=ctx.createOscillator();const gn=ctx.createGain();o.connect(gn);gn.connect(ctx.destination);o.frequency.value=freq;o.type="sine";gn.gain.setValueAtTime(0,ctx.currentTime+delay);gn.gain.linearRampToValueAtTime(0.45,ctx.currentTime+delay+0.04);gn.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+delay+0.45);o.start(ctx.currentTime+delay);o.stop(ctx.currentTime+delay+0.5);});}catch{}};
@@ -4234,6 +4255,77 @@ function App(){
         <span style={{fontSize:17}}>{t.e}</span><span style={{fontSize:8}}>{t.l}</span>
       </button>)}
     </nav>
+
+    {/* ════ НАГАДУВАННЯ ПРО ФАСОЛИНИ ════ */}
+    {showSpoonsReminder&&(()=>{
+      const sp=g.spoons?.current??10;
+      const mx=g.spoons?.max??10;
+      const low=sp<5;
+      const dismiss=()=>{
+        upd(p=>({...p,lastSpoonsReminder:Date.now()}));
+        setShowSpoonsReminder(false);
+      };
+      return <div style={{position:"fixed",inset:0,zIndex:9998,background:"rgba(0,0,0,0.75)",display:"flex",alignItems:"flex-end",justifyContent:"center"}}
+        onClick={dismiss}>
+        <div onClick={e=>e.stopPropagation()} style={{width:"100%",maxWidth:480,background:"#161921",borderTop:"1px solid #252a35",borderRadius:"20px 20px 0 0",padding:"20px 20px 36px",display:"flex",flexDirection:"column",gap:14}}>
+          {/* Заголовок */}
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div>
+              <div style={{fontSize:15,fontWeight:700,color:"#f0ece4"}}>🫘 Скільки фасолин зараз?</div>
+              <div style={{fontSize:11,color:"#555",marginTop:2}}>Нагадування кожні 2 години</div>
+            </div>
+            <button onClick={dismiss} style={{background:"transparent",border:"none",color:"#444",fontSize:22,cursor:"pointer",lineHeight:1}}>×</button>
+          </div>
+
+          {/* Поточне значення */}
+          <div style={{textAlign:"center"}}>
+            <div style={{fontSize:48,fontWeight:900,color:low?"#d4804a":"#4ab870",lineHeight:1}}>{sp}</div>
+            <div style={{fontSize:13,color:"#555"}}>з {mx} фасолин</div>
+          </div>
+
+          {/* Візуальна шкала */}
+          <div style={{display:"flex",gap:4}}>
+            {Array.from({length:mx},(_,i)=><div key={i} style={{
+              flex:1,height:16,borderRadius:8,
+              background:i<sp?(low?"#d4804a":"#4ab870"):"#1e2028",
+              border:"1px solid "+(i<sp?(low?"#d4804a44":"#4ab87044"):"#252a35"),
+              transition:"all 0.2s",
+            }}/>)}
+          </div>
+
+          {/* Кнопки +/- */}
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+            <div style={{display:"flex",flexDirection:"column",gap:6}}>
+              <div style={{fontSize:10,color:"#555",fontFamily:"monospace",textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:2}}>Витратити</div>
+              {[{l:"−1 Легка",n:1},{l:"−2 Важка",n:2},{l:"−3 Гіперфокус",n:3}].map(b=><button key={b.l}
+                onClick={()=>upd(p=>({...p,spoons:{...p.spoons,current:Math.max(0,(p.spoons?.current??10)-b.n)}}))}
+                disabled={sp===0}
+                style={{background:"rgba(212,128,74,0.1)",border:"1px solid rgba(212,128,74,0.3)",borderRadius:8,padding:"8px",color:"#d4804a",fontSize:12,fontWeight:600,cursor:"pointer",opacity:sp===0?0.4:1}}>
+                {b.l}
+              </button>)}
+            </div>
+            <div style={{display:"flex",flexDirection:"column",gap:6}}>
+              <div style={{fontSize:10,color:"#555",fontFamily:"monospace",textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:2}}>Поповнити</div>
+              {[{l:"+1 Відпочинок",n:1},{l:"+2 Прогулянка",n:2},{l:"+2 Хороший сон",n:2}].map(b=><button key={b.l}
+                onClick={()=>upd(p=>({...p,spoons:{...p.spoons,current:Math.min(p.spoons?.max??10,(p.spoons?.current??10)+b.n)}}))}
+                disabled={sp>=mx}
+                style={{background:"rgba(74,184,112,0.1)",border:"1px solid rgba(74,184,112,0.3)",borderRadius:8,padding:"8px",color:"#4ab870",fontSize:12,fontWeight:600,cursor:"pointer",opacity:sp>=mx?0.4:1}}>
+                {b.l}
+              </button>)}
+            </div>
+          </div>
+
+          {low&&<div style={{background:"rgba(212,128,74,0.1)",border:"1px solid rgba(212,128,74,0.3)",borderRadius:8,padding:"10px 12px",fontSize:12,color:"#d4804a",lineHeight:1.5,textAlign:"center"}}>
+            ⚠️ Мало ресурсу — відпочинь перед наступним квестом
+          </div>}
+
+          <button onClick={dismiss}
+            style={{background:"rgba(74,184,112,0.15)",border:"1px solid rgba(74,184,112,0.4)",borderRadius:10,padding:"12px",color:"#4ab870",fontSize:14,fontWeight:700,cursor:"pointer"}}>
+            ✓ Зрозуміло
+          </button>
+        </div>
+      </div>;
+    })()}
 
     {/* ════ ПОВНОЕКРАННИЙ ФЛЕШ ВІДКАТУ ════ */}
     {showRetreatFlash&&<div className="dragon-flash-overlay">
