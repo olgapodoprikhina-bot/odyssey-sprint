@@ -737,7 +737,17 @@ function App(){
   const calcBbFinal=(bbG,sp)=>{const bb=parseInt(bbG);const s=parseInt(sp);if(isNaN(bb)||bb<0||bb>100)return null;if(isNaN(s)||s<1||s>10)return null;return Math.round((bb+s*10)/2);};
   const handleBb=v=>{setBbInput(v);const f=calcBbFinal(v,spoonsInput);setBbPreview(f!==null?bbToCard(f):null);};
   const handleSpoonsInput=v=>{setSpoonsInput(v);const f=calcBbFinal(bbInput,v);setBbPreview(f!==null?bbToCard(f):null);};
-  const confirmBb=()=>{const f=calcBbFinal(bbInput,spoonsInput);if(f===null){toast_("Введи BB (0–100) і фасолини (1–10)","#e05555");return;}const c=bbToCard(f);if(!c){toast_("Помилка розрахунку","#e05555");return;}upd({energy:c,mode:null,bbValue:String(f),bbGarmin:bbInput,spoonsValue:spoonsInput});toast_(c.emoji+" "+c.label+" x"+c.mult,c.color);};
+  const confirmBb=()=>{
+    const f=calcBbFinal(bbInput,spoonsInput);
+    if(f===null){toast_("Введи BB (0–100) і фасолини (1–10)","#e05555");return;}
+    const c=bbToCard(f);
+    if(!c){toast_("Помилка розрахунку","#e05555");return;}
+    const spoonsNum=Math.min(10,Math.max(1,parseInt(spoonsInput)||10));
+    upd(p=>({...p,energy:c,mode:null,bbValue:String(f),bbGarmin:bbInput,spoonsValue:spoonsInput,
+      spoons:{...p.spoons,current:spoonsNum},
+    }));
+    toast_(c.emoji+" "+c.label+" x"+c.mult+" · 🫘 "+spoonsNum,c.color);
+  };
 
   const ritualOk=Object.values(g.ritual||{}).every(Boolean);
   const finishRitual=()=>{setShowRitual(false);if(pendingQ)addDaily(pendingQ.name,pendingQ.zone,pendingQ.projId);toast_("🔥 Ритуал виконано!","#4ab870");};
