@@ -460,6 +460,7 @@ function App(){
   const [revDone,setRevDone]=useState(0);
   const [revTotal,setRevTotal]=useState(5);
   const [revNote,setRevNote]=useState({mood:"",done:"",improve:"",overall:""});
+  const [weekScore,setWeekScore]=useState(0); // 1-5 балів за тиждень
   const [revCarryover,setRevCarryover]=useState(new Set()); // IDs of quests selected for carryover
   const [shopFlash,setShopFlash]=useState(null);
   const [habitDraft,setHabitDraft]=useState({habit:"",morning:"",evening:""});
@@ -1426,7 +1427,7 @@ function App(){
       PROJECTS.forEach(proj=>{const gk=[...pr[proj.id].gradeKeys];gk[cw-1]=gr.key;pr[proj.id]={...pr[proj.id],gradeKeys:gk};});
       // Зберігаємо рефлексію тижня
       const wr=[...(p.weekReflections||[[],[],[]])];
-      wr[cw-1]={...noteSnapshot,pct,grade:gr.key,done:revDone,total:revTotal};
+      wr[cw-1]={...noteSnapshot,pct,grade:gr.key,done:revDone,total:revTotal,selfScore:weekScore};
       // Якщо останній тиждень — архівуємо спринт
       let newArchive=p.archive||[];
       if(isLastWeek){
@@ -2762,6 +2763,7 @@ function App(){
         setRevDone(autoDone);
         setRevTotal(Math.max(1,autoTotal));
         setRevNote({mood:"",done:"",improve:"",overall:""});
+        setWeekScore(0);
         // Автоматично відмічаємо всі невиконані квести для переносу
         const undoneIds=new Set(PROJECTS.flatMap(p=>(g.projects[p.id]?.weeks[cw-1]?.quests||[]).filter(q=>!q.done&&!q.isMilestone).map(q=>q.id)));
         setRevCarryover(undoneIds);
@@ -4202,11 +4204,64 @@ function App(){
           </div>}
         </div>;
       })()}
+      {/* ══ ТАБЛИЦЯ ВИКОНАНИХ ЗАДАЧ ══ */}
+      {(()=>{
+        const allDone=PROJECTS.flatMap(p=>
+          (g.projects[p.id]?.weeks[cw-1]?.quests||[])
+            .filter(q=>q.done)
+            .map(q=>({...q,projId:p.id,projColor:p.color,projShort:p.short,projEmoji:p.emoji}))
+        );
+        if(allDone.length===0) return <div style={{background:"#161921",border:"1px solid #252a35",borderRadius:12,padding:"16px",textAlign:"center",color:"#444",fontSize:13}}>Цього тижня виконаних задач не знайдено</div>;
+        const byProj=PROJECTS.map(p=>({
+          ...p,
+          items:allDone.filter(q=>q.projId===p.id)
+        })).filter(p=>p.items.length>0);
+        return <div style={{background:"#161921",border:"1px solid #252a35",borderRadius:12,padding:"16px"}}>
+          <div style={{fontFamily:"monospace",fontSize:9,letterSpacing:"0.18em",textTransform:"uppercase",color:"#4ab8a0",marginBottom:14}}>
+            ✅ Виконано за тиждень {cw} — {allDone.length} задач
+          </div>
+          {byProj.map(p=><div key={p.id} style={{marginBottom:14}}>
+            <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:7,paddingBottom:5,borderBottom:"1px solid #1e2028"}}>
+              <span style={{fontSize:14}}>{p.emoji}</span>
+              <span style={{fontSize:11,fontWeight:700,color:p.color,fontFamily:"monospace",textTransform:"uppercase",letterSpacing:"0.06em"}}>{p.short}</span>
+              <span style={{fontSize:10,color:"#555",marginLeft:"auto",fontFamily:"monospace"}}>{p.items.length} шт.</span>
+            </div>
+            {p.items.map(q=><div key={q.id} style={{display:"flex",alignItems:"flex-start",gap:8,padding:"5px 0",borderBottom:"1px solid rgba(255,255,255,0.03)"}}>
+              <span style={{color:p.color,fontSize:12,flexShrink:0,marginTop:1}}>✓</span>
+              <span style={{fontSize:12,color:"#c0bdb5",lineHeight:1.4,flex:1}}>{q.name}</span>
+              {q.carriedFrom&&<span style={{fontSize:9,color:"#555",flexShrink:0,fontFamily:"monospace",alignSelf:"center"}}>←{q.carriedFrom}</span>}
+            </div>)}
+          </div>)}
+        </div>;
+      })()}
+
       {/* ══ РЕФЛЕКСІЯ ══ */}
       <div style={{background:"#161921",border:"1px solid #252a35",borderRadius:12,padding:"16px"}}>
         <div style={{fontFamily:"monospace",fontSize:9,letterSpacing:"0.18em",textTransform:"uppercase",color:"#b87adb",marginBottom:14}}>
           {cw<3?"✍️ Рефлексія тижня "+cw:"✍️ Рефлексія спринту"}
         </div>
+
+        {/* ── САМООЦІНКА ── */}
+        <div style={{marginBottom:18,padding:"14px",background:"rgba(183,122,219,0.07)",border:"1px solid rgba(183,122,219,0.2)",borderRadius:10}}>
+          <div style={{fontSize:13,color:"#d4a0f0",fontWeight:700,marginBottom:4}}>Скільки балів даю собі за цей тиждень?</div>
+          <div style={{fontSize:11,color:"#666",marginBottom:12}}>Чесно, без завищення і самокритики</div>
+          <div style={{display:"flex",gap:8,justifyContent:"center"}}>
+            {[1,2,3,4,5].map(n=>{
+              const labels=["😔 Складно","😐 Нормально","🙂 Непогано","😊 Добре","🌟 Відмінно"];
+              const colors=["#e05555","#e09955","#e0c855","#4ab870","#c8a840"];
+              const active=weekScore===n;
+              return <button key={n} onClick={()=>setWeekScore(weekScore===n?0:n)}
+                style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:4,padding:"10px 4px",background:active?colors[n-1]+"22":"rgba(255,255,255,0.03)",border:"2px solid "+(active?colors[n-1]:"#252a35"),borderRadius:10,cursor:"pointer",transition:"all 0.18s"}}>
+                <span style={{fontSize:20}}>{["😔","😐","🙂","😊","🌟"][n-1]}</span>
+                <span style={{fontSize:16,fontWeight:900,color:active?colors[n-1]:"#444"}}>{n}</span>
+              </button>;
+            })}
+          </div>
+          {weekScore>0&&<div style={{textAlign:"center",marginTop:10,fontSize:12,color:["#e05555","#e09955","#e0c855","#4ab870","#c8a840"][weekScore-1],fontWeight:600}}>
+            {["Ти справилась, навіть якщо було складно","Тиждень пройшов — і це вже добре","Є що покращити, але є і успіхи!","Гарний тиждень, так тримати!","Просто супер! Ти молодець! 🎉"][weekScore-1]}
+          </div>}
+        </div>
+
         {[
           {key:"overall", q:cw<3?"Як пройшов тиждень в цілому?":"Як пройшов спринт в цілому?", placeholder:"Кілька слів про загальне відчуття..."},
           {key:"mood",    q:"Які відчуття залишились?",              placeholder:"Втома, задоволення, напруга, легкість..."},
