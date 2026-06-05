@@ -2757,10 +2757,13 @@ function App(){
       </div>
       
       {g.sprintStarted&&<button onClick={()=>{
-        const allQ=PROJECTS.flatMap(p=>g.projects[p.id].weeks[cw-1].quests.filter(q=>!q.isMilestone));
+        // Рахуємо тільки квести БЕЗ мітки carriedFrom — тобто заплановані саме цього тижня
+        const allQ=PROJECTS.flatMap(p=>g.projects[p.id].weeks[cw-1].quests.filter(q=>!q.isMilestone&&!q.carriedFrom));
         const autoDone=allQ.filter(q=>q.done).length;
+        // Додатково рахуємо виконані перенесені — вони теж зараховуються в done
+        const carriedDone=PROJECTS.flatMap(p=>g.projects[p.id].weeks[cw-1].quests.filter(q=>!q.isMilestone&&q.carriedFrom&&q.done)).length;
         const autoTotal=allQ.length;
-        setRevDone(autoDone);
+        setRevDone(autoDone+carriedDone);
         setRevTotal(Math.max(1,autoTotal));
         setRevNote({mood:"",done:"",improve:"",overall:""});
         setWeekScore(0);
@@ -4163,9 +4166,10 @@ function App(){
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
           <div style={S.cl}>Квести тижня</div>
           <button onClick={()=>{
-            const allQ=PROJECTS.flatMap(p=>g.projects[p.id].weeks[cw-1].quests.filter(q=>!q.isMilestone));
-            setRevDone(allQ.filter(q=>q.done).length);
-            setRevTotal(Math.max(1,allQ.length));
+            const planned=PROJECTS.flatMap(p=>g.projects[p.id].weeks[cw-1].quests.filter(q=>!q.isMilestone&&!q.carriedFrom));
+            const carriedDoneQ=PROJECTS.flatMap(p=>g.projects[p.id].weeks[cw-1].quests.filter(q=>!q.isMilestone&&q.carriedFrom&&q.done));
+            setRevDone(planned.filter(q=>q.done).length+carriedDoneQ.length);
+            setRevTotal(Math.max(1,planned.length));
           }} style={{fontSize:10,color:"#4a8fd4",background:"rgba(74,143,212,0.1)",border:"1px solid rgba(74,143,212,0.3)",borderRadius:8,padding:"4px 9px",cursor:"pointer"}}>🔄 з квестів</button>
         </div>
         <div style={{fontSize:10,color:"#555",marginBottom:12,lineHeight:1.5}}>
