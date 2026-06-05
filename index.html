@@ -275,7 +275,7 @@ const fresh=()=>({
   ritual:{body:false,phone:false},
   sprintStarted:false,currentWeek:1,sprintNum:1,sprintStartDate:null,weekStartDate:null,
   projects:{A:freshProject("A"),B:freshProject("B"),C:freshProject("C"),D:freshProject("D")},
-  dailyQuests:[],microDone:[],flowDone:[],purchases:[],dayPhase:"ritual",workType:null,
+  dailyQuests:[],microDone:[],flowDone:[],purchases:[],dayPhase:"ritual",workType:null,questsCancelledToday:0,
   tomorrowPlan:"",
   tomorrowDayType:null,   // "work" | "dayoff" | null
   tomorrowStartTime:"09:00",
@@ -597,7 +597,20 @@ function App(){
             + (s.microDone||[]).length*30,
           questsDone:s.dailyQuests.filter(q=>q.done).length,
           questsTotal:s.dailyQuests.length,
+          questsCancelled:s.questsCancelledToday||0,
           habitsDone:(s.dailyHabits||[]).length,
+          manaTotal:s.mana, // мана до додавання нової
+          // По яких проектах виконано задачі
+          questsByProj:PROJECTS.map(p=>({
+            id:p.id, emoji:p.emoji, short:p.short, color:p.color,
+            done:s.dailyQuests.filter(q=>q.done&&q.projId===p.id).length,
+          })).filter(p=>p.done>0),
+          // Вечірній план і завтра
+          eveningActivity:(s.eveningActivity||"").trim(),
+          tomorrowDayType:s.tomorrowDayType||null,
+          tomorrowActivity:(s.tomorrowActivity||"").trim(),
+          tomorrowStartTime:s.tomorrowStartTime||"09:00",
+          isDayOff:!!s.isDayOff,
         };
         // Dragon: відкат якщо будь-яка з умов не виконана (і не вихідний)
         const dragonPrev=s.dragon||{scene:0,lastAdvanceDate:null,finished:false};
@@ -627,7 +640,7 @@ function App(){
           yesterdaySummary:summary,
           dragon:{...dragonPrev,scene:newDragonScene},
           tomorrowPlan:"",tomorrowDayType:null,tomorrowStartTime:"09:00",tomorrowActivity:"",
-          eveningActivity:"",workFinished:false,
+          eveningActivity:"",workFinished:false,questsCancelledToday:0,
           // Скинути виконання мовних сесій (але зберегти блоки і history)
           langSession:{...s.langSession,
             fr:{...s.langSession.fr, todayDone:{}, todayPicks:{}},
@@ -1810,46 +1823,107 @@ function App(){
     </div>}
 
     {/* ── New Day modal ── */}
-    {showNewDay&&newDaySummary&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.97)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:20,maxWidth:500,margin:"0 auto"}}>
-      <div style={{background:"#161921",border:"1px solid #c8a840",borderRadius:16,padding:"28px 22px",width:"100%",maxWidth:360}}>
-        <div style={{textAlign:"center",marginBottom:20}}>
-          <div style={{fontSize:40,marginBottom:8}}>🌅</div>
-          <div style={{fontFamily:"monospace",fontSize:9,letterSpacing:"0.2em",color:"#c8a840",textTransform:"uppercase",marginBottom:6}}>Новий день</div>
-          <div style={{fontSize:20,fontWeight:700,marginBottom:4}}>Доброго ранку! ✨</div>
-          <div style={{fontSize:13,color:"#888",marginBottom:2}}>Вчора — {newDaySummary.date.split("-").reverse().join(".")}</div>
-          <div style={{fontSize:12,color:"#555",fontStyle:"italic"}}>Новий день — нова енергія 🔋</div>
-        </div>
+    {showNewDay&&newDaySummary&&(()=>{
+      const nd=newDaySummary;
+      const manaBefore=nd.manaTotal||0;
+      const manaAfter=manaBefore+nd.manaEarned;
+      // Перевірка апгрейду рівня (кожні 500 ман)
+      const lvlBefore=Math.floor(manaBefore/500);
+      const lvlAfter=Math.floor(manaAfter/500);
+      const levelUp=lvlAfter>lvlBefore;
+      const dateStr=nd.date?(nd.date.split("-").reverse().join(".")):"";
+      const dayLabel=nd.isDayOff?"вихідний день":"робочий день";
+      return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.97)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:20,maxWidth:500,margin:"0 auto",overflowY:"auto"}}>
+        <div style={{background:"#161921",border:"1px solid #c8a840",borderRadius:16,padding:"26px 20px",width:"100%",maxWidth:370}}>
 
-        {/* Звіт за вчора */}
-        <div style={{background:"#0a0c10",borderRadius:12,padding:"14px 16px",marginBottom:16}}>
-          <div style={{fontFamily:"monospace",fontSize:9,letterSpacing:"0.15em",color:"#555",textTransform:"uppercase",marginBottom:10}}>Вчора</div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
-            {[
-              {label:"Квестів виконано",val:newDaySummary.questsDone+"/"+newDaySummary.questsTotal,c:"#c8a840"},
-              {label:"Звичок виконано",val:newDaySummary.habitsDone+"/4",c:"#4ab870"},
-            ].map((s,i)=><div key={i} style={{background:"#111",borderRadius:8,padding:"10px 8px",textAlign:"center"}}>
-              <div style={{fontSize:20,fontWeight:700,color:s.c}}>{s.val}</div>
-              <div style={{fontSize:9,color:"#444",marginTop:2,lineHeight:1.4}}>{s.label}</div>
+          {/* Шапка */}
+          <div style={{textAlign:"center",marginBottom:20}}>
+            <div style={{fontSize:44,marginBottom:6}}>{nd.isDayOff?"🌿":"🌅"}</div>
+            <div style={{fontFamily:"monospace",fontSize:9,letterSpacing:"0.2em",color:"#c8a840",textTransform:"uppercase",marginBottom:6}}>Новий день · {dateStr}</div>
+            <div style={{fontSize:22,fontWeight:900,marginBottom:4}}>Доброго ранку! ✨</div>
+            <div style={{fontSize:12,color:"#666"}}>Вчора був {dayLabel}</div>
+          </div>
+
+          {/* Якщо вихідний — питання про відпочинок */}
+          {nd.isDayOff&&<div style={{background:"rgba(74,184,112,0.08)",border:"1px solid rgba(74,184,112,0.2)",borderRadius:12,padding:"14px",marginBottom:16,textAlign:"center"}}>
+            <div style={{fontSize:16,marginBottom:6}}>🛋️</div>
+            <div style={{fontSize:13,color:"#4ab870",fontWeight:700,marginBottom:4}}>Як відпочила?</div>
+            <div style={{fontSize:12,color:"#666"}}>Сподіваюся, вихідний був відновлюючим 💚</div>
+          </div>}
+
+          {/* Мана */}
+          <div style={{background:"rgba(200,168,64,0.07)",border:"1px solid rgba(200,168,64,0.25)",borderRadius:12,padding:"14px 16px",marginBottom:levelUp?0:14}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+              <div style={{fontFamily:"monospace",fontSize:9,letterSpacing:"0.15em",color:"#888",textTransform:"uppercase"}}>Мана вчора</div>
+              <div style={{fontFamily:"monospace",fontSize:10,color:"#555"}}>{manaBefore} → {manaAfter} ✨</div>
+            </div>
+            <div style={{display:"flex",alignItems:"baseline",gap:8}}>
+              <div style={{fontSize:36,fontWeight:900,color:"#c8a840"}}>+{nd.manaEarned}</div>
+              <div style={{fontSize:13,color:"#888"}}>✨ зароблено</div>
+            </div>
+          </div>
+
+          {/* Левел-ап */}
+          {levelUp&&<div style={{background:"linear-gradient(135deg,rgba(200,168,64,0.18),rgba(183,122,219,0.18))",border:"1px solid #c8a840",borderRadius:12,padding:"12px 16px",margin:"10px 0 14px",textAlign:"center"}}>
+            <div style={{fontSize:24,marginBottom:4}}>🏆</div>
+            <div style={{fontSize:15,fontWeight:900,color:"#f0d070",letterSpacing:"0.05em"}}>НОВИЙ РІВЕНЬ!</div>
+            <div style={{fontSize:13,color:"#c8a840"}}>Рівень {lvlBefore} → <b>{lvlAfter}</b> 🎉</div>
+          </div>}
+
+          {/* Квести по проектах */}
+          {nd.questsDone>0&&<div style={{background:"#0d0f14",borderRadius:12,padding:"13px 15px",marginBottom:14}}>
+            <div style={{fontFamily:"monospace",fontSize:9,letterSpacing:"0.15em",color:"#888",textTransform:"uppercase",marginBottom:10}}>
+              Виконано вчора · {nd.questsDone} {nd.questsDone===1?"квест":nd.questsDone<5?"квести":"квестів"}
+            </div>
+            {(nd.questsByProj||[]).map(p=><div key={p.id} style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+              <span style={{fontSize:14}}>{p.emoji}</span>
+              <span style={{fontSize:12,color:p.color,fontFamily:"monospace",fontWeight:700}}>{p.short}</span>
+              <span style={{flex:1,height:1,background:"#1e2230"}}/>
+              <span style={{fontSize:13,fontWeight:700,color:"#f0ece4"}}>{p.done}</span>
             </div>)}
-          </div>
-          <div style={{textAlign:"center",background:"rgba(200,168,64,0.08)",border:"1px solid rgba(200,168,64,0.2)",borderRadius:8,padding:"10px"}}>
-            <div style={{fontSize:11,color:"#666",marginBottom:3}}>Мани зароблено вчора</div>
-            <div style={{fontSize:28,fontWeight:700,color:"#c8a840"}}>+{newDaySummary.manaEarned}</div>
-          </div>
-        </div>
+            <div style={{marginTop:8,paddingTop:8,borderTop:"1px solid #1a1a1a",display:"flex",justifyContent:"space-between",fontSize:11,color:"#555"}}>
+              <span>Звичок: {nd.habitsDone}/4</span>
+              <span>{nd.questsDone}/{nd.questsTotal} квестів</span>
+            </div>
+          </div>}
 
-        {/* Нагадування */}
-        <div style={{background:"rgba(74,143,212,0.07)",border:"1px solid rgba(74,143,212,0.2)",borderRadius:10,padding:"11px 13px",marginBottom:16,fontSize:12,color:"#888",lineHeight:1.6}}>
-          💡 Щоденні квести скинуто. Вчорашній прогрес збережено.<br/>
-          Перший крок — <b style={{color:"#f0ece4"}}>внести Body Battery</b> і вибрати режим дня.
-        </div>
+          {/* Скасовані квести */}
+          {(nd.questsCancelled||0)>0&&<div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px",background:"rgba(224,85,85,0.06)",border:"1px solid rgba(224,85,85,0.18)",borderRadius:8,marginBottom:10}}>
+            <span style={{fontSize:14}}>🗑</span>
+            <span style={{fontSize:12,color:"#888"}}>Скасовано квестів:</span>
+            <span style={{fontSize:13,fontWeight:700,color:"#e05555",marginLeft:"auto"}}>{nd.questsCancelled}</span>
+          </div>}
 
-        <button onClick={()=>{setShowNewDay(false);setScreen("morning");}}
-          style={{width:"100%",background:"#c8a840",border:"none",borderRadius:8,padding:"13px",color:"#0d0f14",fontSize:15,fontWeight:700}}>
-          🌅 Внести енергію на новий день →
-        </button>
-      </div>
-    </div>}
+          {/* Якщо нічого не виконано */}
+          {nd.questsDone===0&&!nd.isDayOff&&<div style={{background:"#0d0f14",borderRadius:12,padding:"13px 15px",marginBottom:14,textAlign:"center"}}>
+            <div style={{fontSize:12,color:"#555"}}>Вчора квестів не виконано</div>
+            <div style={{fontSize:11,color:"#444",marginTop:4}}>Сьогодні новий шанс 💪</div>
+          </div>}
+
+          {/* Вчора запланувала */}
+          {nd.eveningActivity?<div style={{background:"rgba(155,89,182,0.07)",border:"1px solid rgba(155,89,182,0.2)",borderRadius:12,padding:"12px 14px",marginBottom:14}}>
+            <div style={{fontFamily:"monospace",fontSize:9,letterSpacing:"0.12em",color:"#9b59b6",textTransform:"uppercase",marginBottom:6}}>Вчора планувала ввечері</div>
+            <div style={{fontSize:13,color:"#c0bdb5"}}>{nd.eveningActivity}</div>
+          </div>:null}
+
+          {/* На сьогодні */}
+          {nd.tomorrowDayType&&nd.tomorrowActivity?<div style={{background:"rgba(74,143,212,0.07)",border:"1px solid rgba(74,143,212,0.22)",borderRadius:12,padding:"12px 14px",marginBottom:16}}>
+            <div style={{fontFamily:"monospace",fontSize:9,letterSpacing:"0.12em",color:"#4a8fd4",textTransform:"uppercase",marginBottom:6}}>
+              План на сьогодні · {nd.tomorrowDayType==="work"?"🏢 Робочий":"🌿 Вихідний"}{nd.tomorrowDayType==="work"?" · старт "+nd.tomorrowStartTime:""}
+            </div>
+            <div style={{fontSize:13,color:"#c0bdb5"}}>{nd.tomorrowActivity}</div>
+          </div>:<div style={{background:"rgba(255,255,255,0.03)",border:"1px solid #1e2230",borderRadius:12,padding:"12px 14px",marginBottom:16,textAlign:"center"}}>
+            <div style={{fontSize:12,color:"#444"}}>Вчора нічого не запланувала на сьогодні</div>
+            <div style={{fontSize:11,color:"#333",marginTop:3}}>Але це не страшно — ти впораєшся! 🙂</div>
+          </div>}
+
+          <button onClick={()=>{setShowNewDay(false);setScreen("morning");}}
+            style={{width:"100%",background:"#c8a840",border:"none",borderRadius:10,padding:"14px",color:"#0d0f14",fontSize:15,fontWeight:900,cursor:"pointer"}}>
+            🌅 Починаємо новий день →
+          </button>
+        </div>
+      </div>;
+    })()}
 
     {/* ── Activators modal ── */}
     {showActivators&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.95)",zIndex:9997,display:"flex",flexDirection:"column",maxWidth:500,margin:"0 auto"}}>
@@ -3475,7 +3549,7 @@ function App(){
           if(questsGroupBy==="none"){
             return sorted.map(q=><QItem key={q.id} q={q} showProj
               onDone={()=>doneDaily(q.id)}
-              onDel={()=>upd(p=>({...p,dailyQuests:p.dailyQuests.filter(x=>x.id!==q.id)}))}
+              onDel={()=>upd(p=>({...p,dailyQuests:p.dailyQuests.filter(x=>x.id!==q.id),questsCancelledToday:(p.questsCancelledToday||0)+1}))}
               onSprintConst={!q.done?()=>addSprintConst(q):null}
               onNotion={g.notion?.token&&!q.notionPageId?(nProjId,nProjName)=>sendQuestToNotion(q,q.projId,nProjId,nProjName):null}/>);
           }
@@ -3494,7 +3568,7 @@ function App(){
             </div>
             {qs.map(q=><QItem key={q.id} q={q} showProj={questsGroupBy==="notion"}
               onDone={()=>doneDaily(q.id)}
-              onDel={()=>upd(p=>({...p,dailyQuests:p.dailyQuests.filter(x=>x.id!==q.id)}))}
+              onDel={()=>upd(p=>({...p,dailyQuests:p.dailyQuests.filter(x=>x.id!==q.id),questsCancelledToday:(p.questsCancelledToday||0)+1}))}
               onSprintConst={!q.done?()=>addSprintConst(q):null}
               onNotion={g.notion?.token&&!q.notionPageId?(nProjId,nProjName)=>sendQuestToNotion(q,q.projId,nProjId,nProjName):null}/>)}
           </div>);
