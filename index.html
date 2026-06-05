@@ -163,11 +163,11 @@ const GRADE=p=>{
   if(p>=85)return{label:"🌟 Елітний",  color:"#c8a840",bonus:100,key:"elite"};
   if(p>=70)return{label:"✅ Міцний",   color:"#4ab870",bonus:50, key:"solid"};
   if(p>=50)return{label:"⚡ Виживання",color:"#4a8fd4",bonus:0,  key:"survive"};
-  return        {label:"🔄 Скидання", color:"#e05555",bonus:-30,key:"reset"};
+  return        {label:"🔄 Відміна", color:"#e05555",bonus:-30,key:"reset"};
 };
 const gradeColors={elite:"#c8a840",solid:"#4ab870",survive:"#4a8fd4",reset:"#e05555"};
 const gradeEmoji= {elite:"🌟",solid:"✅",survive:"⚡",reset:"🔄"};
-const gradeLabel= {elite:"Елітний",solid:"Міцний",survive:"Виживання",reset:"Скидання"};
+const gradeLabel= {elite:"Елітний",solid:"Міцний",survive:"Виживання",reset:"Відміна"};
 const calcMana=(zone,energy,mode)=>Math.round(10*(ZONES.find(x=>x.id===zone)?.mult||1)*(energy?.mult||1)*(MODES.find(x=>x.id===mode)?.mult||1));
 const BB_RANGES=[
   {range:"0-20",  label:"Порожньо", emoji:"💀",color:"#e05555"},
@@ -4199,7 +4199,7 @@ function App(){
       </div>}
       <div style={S.card}>
         <div style={S.cl}>Шкала</div>
-        {[{r:"85-100%",l:"🌟 Елітний",b:"+100",c:"#c8a840"},{r:"70-84%",l:"✅ Міцний",b:"+50",c:"#4ab870"},{r:"50-69%",l:"⚡ Виживання",b:"0",c:"#4a8fd4"},{r:"< 50%",l:"🔄 Скидання",b:"-30",c:"#e05555"}].map(x=><div key={x.r} style={{display:"flex",justifyContent:"space-between",padding:"7px 0",borderBottom:"1px solid #1a1a1a",fontSize:12}}>
+        {[{r:"85-100%",l:"🌟 Елітний",b:"+100",c:"#c8a840"},{r:"70-84%",l:"✅ Міцний",b:"+50",c:"#4ab870"},{r:"50-69%",l:"⚡ Виживання",b:"0",c:"#4a8fd4"},{r:"< 50%",l:"🔄 Відміна",b:"-30",c:"#e05555"}].map(x=><div key={x.r} style={{display:"flex",justifyContent:"space-between",padding:"7px 0",borderBottom:"1px solid #1a1a1a",fontSize:12}}>
           <span style={{color:"#555"}}>{x.r}</span><span style={{color:x.c}}>{x.l}</span><span style={{fontFamily:"monospace",color:"#c8a840"}}>{x.b}</span>
         </div>)}
       </div>
