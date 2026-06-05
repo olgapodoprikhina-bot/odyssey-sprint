@@ -2907,19 +2907,61 @@ function App(){
             })}
 
             {/* Рефлексії тижнів */}
-            {(a.weekReflections||[]).some(r=>r&&(r.overall||r.mood||r.done||r.improve))&&<div style={{marginTop:14}}>
-              <div style={S.cl}>✍️ Рефлексія</div>
-              {(a.weekReflections||[]).map((r,wi)=>{
-                if(!r||(!(r.overall)&&!(r.mood)&&!(r.done)&&!(r.improve)))return null;
-                return <div key={wi} style={{marginBottom:10,padding:"10px 12px",background:"rgba(184,122,219,0.06)",border:"1px solid rgba(184,122,219,0.2)",borderRadius:10}}>
-                  <div style={{fontSize:10,fontFamily:"monospace",color:"#b87adb",marginBottom:8,letterSpacing:"0.1em",textTransform:"uppercase"}}>Тиждень {wi+1} · {gradeLabel[r.grade]||""}</div>
-                  {r.overall&&<div style={{fontSize:11,color:"#888",marginBottom:5}}><span style={{color:"#555"}}>Загалом: </span>{r.overall}</div>}
-                  {r.mood&&<div style={{fontSize:11,color:"#888",marginBottom:5}}><span style={{color:"#555"}}>Відчуття: </span>{r.mood}</div>}
-                  {r.done&&<div style={{fontSize:11,color:"#888",marginBottom:5}}><span style={{color:"#555"}}>Вдалося: </span>{r.done}</div>}
-                  {r.improve&&<div style={{fontSize:11,color:"#888"}}><span style={{color:"#555"}}>Покращити: </span>{r.improve}</div>}
-                </div>;
-              })}
-            </div>}
+            {(()=>{
+              const refs=a.weekReflections||[];
+              const hasAny=refs.some(r=>r&&(r.overall||r.mood||r.done||r.improve||r.selfScore));
+              if(!hasAny)return null;
+              const scoreEmoji=["","😔","😐","🙂","😊","🌟"];
+              const scoreColors=["","#e05555","#e09955","#e0c855","#4ab870","#c8a840"];
+              const scoreLabels=["","Складно","Нормально","Непогано","Добре","Відмінно"];
+              return <div style={{marginTop:14}}>
+                <div style={S.cl}>✍️ Рефлексія по тижнях</div>
+                {refs.map((r,wi)=>{
+                  if(!r)return null;
+                  const hasText=r.overall||r.mood||r.done||r.improve;
+                  const hasScore=r.selfScore>0;
+                  if(!hasText&&!hasScore)return null;
+                  const pct=r.total>0?Math.round(r.done/r.total*100):null;
+                  return <div key={wi} style={{marginBottom:12,background:"rgba(184,122,219,0.05)",border:"1px solid rgba(184,122,219,0.18)",borderRadius:12,overflow:"hidden"}}>
+                    {/* Шапка тижня */}
+                    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 14px",borderBottom:hasText?"1px solid rgba(184,122,219,0.12)":"none",background:"rgba(184,122,219,0.06)"}}>
+                      <div style={{display:"flex",alignItems:"center",gap:8}}>
+                        <span style={{fontFamily:"monospace",fontSize:10,color:"#b87adb",letterSpacing:"0.1em",textTransform:"uppercase",fontWeight:700}}>Тиждень {wi+1}</span>
+                        {r.grade&&<span style={{fontSize:12}}>{gradeEmoji[r.grade]}</span>}
+                        {r.grade&&<span style={{fontSize:10,color:gradeColors[r.grade]}}>{gradeLabel[r.grade]}</span>}
+                      </div>
+                      <div style={{display:"flex",alignItems:"center",gap:10}}>
+                        {pct!==null&&<span style={{fontFamily:"monospace",fontSize:11,color:"#555"}}>{r.done}/{r.total} ({pct}%)</span>}
+                        {hasScore&&<div style={{display:"flex",alignItems:"center",gap:4,background:scoreColors[r.selfScore]+"22",border:"1px solid "+scoreColors[r.selfScore]+"44",borderRadius:20,padding:"2px 10px"}}>
+                          <span style={{fontSize:14}}>{scoreEmoji[r.selfScore]}</span>
+                          <span style={{fontSize:12,fontWeight:700,color:scoreColors[r.selfScore]}}>{r.selfScore}/5</span>
+                          <span style={{fontSize:10,color:scoreColors[r.selfScore]}}>{scoreLabels[r.selfScore]}</span>
+                        </div>}
+                      </div>
+                    </div>
+                    {/* Текст рефлексії */}
+                    {hasText&&<div style={{padding:"12px 14px",display:"flex",flexDirection:"column",gap:8}}>
+                      {r.overall&&<div style={{fontSize:12,color:"#c0bdb5",lineHeight:1.5}}>
+                        <span style={{fontSize:10,color:"#555",fontFamily:"monospace",textTransform:"uppercase",letterSpacing:"0.07em",display:"block",marginBottom:3}}>Загалом</span>
+                        {r.overall}
+                      </div>}
+                      {r.mood&&<div style={{fontSize:12,color:"#c0bdb5",lineHeight:1.5}}>
+                        <span style={{fontSize:10,color:"#555",fontFamily:"monospace",textTransform:"uppercase",letterSpacing:"0.07em",display:"block",marginBottom:3}}>Відчуття</span>
+                        {r.mood}
+                      </div>}
+                      {r.done&&<div style={{fontSize:12,color:"#c0bdb5",lineHeight:1.5}}>
+                        <span style={{fontSize:10,color:"#555",fontFamily:"monospace",textTransform:"uppercase",letterSpacing:"0.07em",display:"block",marginBottom:3}}>Що вдалось</span>
+                        {r.done}
+                      </div>}
+                      {r.improve&&<div style={{fontSize:12,color:"#c0bdb5",lineHeight:1.5}}>
+                        <span style={{fontSize:10,color:"#555",fontFamily:"monospace",textTransform:"uppercase",letterSpacing:"0.07em",display:"block",marginBottom:3}}>Що покращити</span>
+                        {r.improve}
+                      </div>}
+                    </div>}
+                  </div>;
+                })}
+              </div>;
+            })()}
           </div>}
         </div>;
       })}
