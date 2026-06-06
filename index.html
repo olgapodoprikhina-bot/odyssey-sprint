@@ -2202,7 +2202,8 @@ function App(){
         const advancedToday=dr.lastAdvanceDate===today;
         const progressPct=Math.round(dr.scene/21*100);
         // Рандомна картинка для поточної сцени з IndexedDB
-        const bankMeta=(g.dragonBank||{})[dr.scene]||[];
+        const bankKey=(dr.scene>=8&&dr.scene<=14)?"week2":dr.scene;
+        const bankMeta=(g.dragonBank||{})[bankKey]||[];
         const bankData=bankMeta.map(m=>bankImages.find(b=>b.id===m.id)).filter(Boolean);
         const randImg=bankData.length>0?bankData[Math.floor(Math.random()*bankData.length)]:null;
         return <div style={{background:"#161921",border:"1px solid #252a35",borderRadius:14,padding:"16px",textAlign:"center",position:"relative",overflow:"hidden"}}>
@@ -4416,61 +4417,132 @@ function App(){
       <div style={{fontSize:11,color:"#555",lineHeight:1.5,marginBottom:4}}>
         Для кожної сцени завантаж кілька картинок — при відкритті головного екрану показується випадкова з відповідної сцени. Зберігаються локально в IndexedDB (не в хмарі).
       </div>
-      {DRAGON_SCENES.filter(s=>s.n>0).map(sc=>{
-        const meta=(g.dragonBank||{})[sc.n]||[];
-        const imgs=meta.map(m=>({...m,data:bankImages.find(b=>b.id===m.id)?.data||null}));
-        return <div key={sc.n} style={{background:"#161921",border:"1px solid #252a35",borderRadius:12,overflow:"hidden"}}>
-          {/* Header */}
-          <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",borderBottom:imgs.length>0?"1px solid #1e2028":"none"}}>
-            <span style={{fontSize:22}}>{sc.e}</span>
-            <div style={{flex:1}}>
-              <div style={{fontSize:12,fontWeight:700,color:"#f0ece4"}}>{sc.label}</div>
-              <div style={{fontSize:10,color:"#555"}}>Сцена {sc.n} · Тиждень {sc.week} · {imgs.length} фото</div>
+      {(()=>{
+        const week1scenes=DRAGON_SCENES.filter(s=>s.n>=1&&s.n<=7);
+        const week2scenes=DRAGON_SCENES.filter(s=>s.n>=8&&s.n<=14);
+        const week3scenes=DRAGON_SCENES.filter(s=>s.n>=15&&s.n<=21);
+
+        const renderSceneCard=(sc,bankKey)=>{
+          const meta=(g.dragonBank||{})[bankKey]||[];
+          const imgs=meta.map(m=>({...m,data:bankImages.find(b=>b.id===m.id)?.data||null}));
+          return <div key={sc.n} style={{background:"#161921",border:"1px solid #252a35",borderRadius:12,overflow:"hidden"}}>
+            <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",borderBottom:imgs.length>0?"1px solid #1e2028":"none"}}>
+              <span style={{fontSize:22}}>{sc.e}</span>
+              <div style={{flex:1}}>
+                <div style={{fontSize:12,fontWeight:700,color:"#f0ece4"}}>{sc.label}</div>
+                <div style={{fontSize:10,color:"#555"}}>Сцена {sc.n} · Тиждень {sc.week} · {imgs.length} фото</div>
+              </div>
+              <label style={{cursor:"pointer",background:"rgba(200,168,64,0.1)",border:"1px solid rgba(200,168,64,0.3)",borderRadius:8,padding:"5px 10px",fontSize:11,color:"#c8a840",flexShrink:0}}>
+                + Додати
+                <input type="file" accept="image/*" multiple style={{display:"none"}} onChange={e=>{
+                  const files=Array.from(e.target.files);
+                  files.forEach(file=>{
+                    const reader=new FileReader();
+                    reader.onload=async ev=>{
+                      const id=Date.now().toString(36)+"-"+Math.random().toString(36).slice(2);
+                      const imgObj={id,data:ev.target.result};
+                      await idbPut(imgObj);
+                      setBankImages(prev=>[...prev,imgObj]);
+                      upd(p=>{
+                        const bank={...(p.dragonBank||{})};
+                        const prev2=bank[bankKey]||[];
+                        bank[bankKey]=[...prev2,{id,name:file.name}];
+                        return{...p,dragonBank:bank};
+                      });
+                    };
+                    reader.readAsDataURL(file);
+                  });
+                  e.target.value="";
+                }}/>
+              </label>
             </div>
-            <label style={{cursor:"pointer",background:"rgba(200,168,64,0.1)",border:"1px solid rgba(200,168,64,0.3)",borderRadius:8,padding:"5px 10px",fontSize:11,color:"#c8a840",flexShrink:0}}>
-              + Додати
-              <input type="file" accept="image/*" multiple style={{display:"none"}} onChange={e=>{
-                const files=Array.from(e.target.files);
-                files.forEach(file=>{
-                  const reader=new FileReader();
-                  reader.onload=async ev=>{
-                    const id=Date.now().toString(36)+"-"+Math.random().toString(36).slice(2);
-                    const imgObj={id,data:ev.target.result};
-                    await idbPut(imgObj);
-                    setBankImages(prev=>[...prev,imgObj]);
-                    upd(p=>{
-                      const bank={...(p.dragonBank||{})};
-                      const prev=bank[sc.n]||[];
-                      bank[sc.n]=[...prev,{id,name:file.name}];
-                      return{...p,dragonBank:bank};
-                    });
-                  };
-                  reader.readAsDataURL(file);
-                });
-                e.target.value="";
-              }}/>
-            </label>
-          </div>
-          {/* Images grid */}
-          {imgs.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:6,padding:"10px 14px"}}>
-            {imgs.map(img=><div key={img.id} style={{position:"relative",width:72,height:72,borderRadius:8,overflow:"hidden",flexShrink:0,background:"#111"}}>
-              {img.data
-                ?<img src={img.data} alt={img.name} style={{width:"100%",height:"100%",objectFit:"cover"}}/>
-                :<div style={{width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:"#333"}}>...</div>
-              }
-              <button onClick={async()=>{
-                await idbDelete(img.id);
-                setBankImages(prev=>prev.filter(b=>b.id!==img.id));
-                upd(p=>{
-                  const bank={...(p.dragonBank||{})};
-                  bank[sc.n]=(bank[sc.n]||[]).filter(x=>x.id!==img.id);
-                  return{...p,dragonBank:bank};
-                });
-              }} style={{position:"absolute",top:2,right:2,width:18,height:18,borderRadius:"50%",background:"rgba(0,0,0,0.75)",border:"none",color:"#fff",fontSize:11,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1}}>×</button>
-            </div>)}
-          </div>}
-        </div>;
-      })}
+            {imgs.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:6,padding:"10px 14px"}}>
+              {imgs.map(img=><div key={img.id} style={{position:"relative",width:72,height:72,borderRadius:8,overflow:"hidden",flexShrink:0,background:"#111"}}>
+                {img.data
+                  ?<img src={img.data} alt={img.name} style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+                  :<div style={{width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:"#333"}}>...</div>
+                }
+                <button onClick={async()=>{
+                  await idbDelete(img.id);
+                  setBankImages(prev=>prev.filter(b=>b.id!==img.id));
+                  upd(p=>{
+                    const bank={...(p.dragonBank||{})};
+                    bank[bankKey]=(bank[bankKey]||[]).filter(x=>x.id!==img.id);
+                    return{...p,dragonBank:bank};
+                  });
+                }} style={{position:"absolute",top:2,right:2,width:18,height:18,borderRadius:"50%",background:"rgba(0,0,0,0.75)",border:"none",color:"#fff",fontSize:11,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1}}>×</button>
+              </div>)}
+            </div>}
+          </div>;
+        };
+
+        const renderWeek2Card=()=>{
+          const meta=(g.dragonBank||{})["week2"]||[];
+          const imgs=meta.map(m=>({...m,data:bankImages.find(b=>b.id===m.id)?.data||null}));
+          return <div style={{background:"#161921",border:"2px solid rgba(74,143,212,0.4)",borderRadius:12,overflow:"hidden"}}>
+            <div style={{display:"flex",alignItems:"center",gap:10,padding:"12px 14px",borderBottom:imgs.length>0?"1px solid #1e2028":"none",background:"rgba(74,143,212,0.06)"}}>
+              <span style={{fontSize:22}}>🐉</span>
+              <div style={{flex:1}}>
+                <div style={{fontSize:13,fontWeight:700,color:"#4a8fd4"}}>Тиждень 2 — спільний банк</div>
+                <div style={{fontSize:10,color:"#555",marginTop:2}}>Сцени 8–14 · {imgs.length} фото · показується рандомно</div>
+                <div style={{fontSize:9,color:"#444",marginTop:3,lineHeight:1.5}}>{week2scenes.map(s=>s.e+" "+s.label).join(" · ")}</div>
+              </div>
+              <label style={{cursor:"pointer",background:"rgba(74,143,212,0.15)",border:"1px solid rgba(74,143,212,0.4)",borderRadius:8,padding:"6px 12px",fontSize:11,color:"#4a8fd4",flexShrink:0,fontWeight:700}}>
+                + Додати
+                <input type="file" accept="image/*" multiple style={{display:"none"}} onChange={e=>{
+                  const files=Array.from(e.target.files);
+                  files.forEach(file=>{
+                    const reader=new FileReader();
+                    reader.onload=async ev=>{
+                      const id=Date.now().toString(36)+"-"+Math.random().toString(36).slice(2);
+                      const imgObj={id,data:ev.target.result};
+                      await idbPut(imgObj);
+                      setBankImages(prev=>[...prev,imgObj]);
+                      upd(p=>{
+                        const bank={...(p.dragonBank||{})};
+                        const prev2=bank["week2"]||[];
+                        bank["week2"]=[...prev2,{id,name:file.name}];
+                        return{...p,dragonBank:bank};
+                      });
+                    };
+                    reader.readAsDataURL(file);
+                  });
+                  e.target.value="";
+                }}/>
+              </label>
+            </div>
+            {imgs.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:6,padding:"10px 14px"}}>
+              {imgs.map(img=><div key={img.id} style={{position:"relative",width:72,height:72,borderRadius:8,overflow:"hidden",flexShrink:0,background:"#111"}}>
+                {img.data
+                  ?<img src={img.data} alt={img.name} style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+                  :<div style={{width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:"#333"}}>...</div>
+                }
+                <button onClick={async()=>{
+                  await idbDelete(img.id);
+                  setBankImages(prev=>prev.filter(b=>b.id!==img.id));
+                  upd(p=>{
+                    const bank={...(p.dragonBank||{})};
+                    bank["week2"]=(bank["week2"]||[]).filter(x=>x.id!==img.id);
+                    return{...p,dragonBank:bank};
+                  });
+                }} style={{position:"absolute",top:2,right:2,width:18,height:18,borderRadius:"50%",background:"rgba(0,0,0,0.75)",border:"none",color:"#fff",fontSize:11,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1}}>×</button>
+              </div>)}
+            </div>}
+            {imgs.length===0&&<div style={{padding:"14px",fontSize:11,color:"#444",textAlign:"center",fontStyle:"italic"}}>
+              Завантаж картинки — показуватимуться рандомно для всіх 7 сцен тижня 2
+            </div>}
+          </div>;
+        };
+
+        return <>
+          <div style={{fontSize:9,color:"#555",fontFamily:"monospace",textTransform:"uppercase",letterSpacing:"0.15em",marginBottom:6}}>🥚 Тиждень 1 · Сцени 1–7</div>
+          {week1scenes.map(sc=>renderSceneCard(sc,sc.n))}
+          <div style={{fontSize:9,color:"#4a8fd4",fontFamily:"monospace",textTransform:"uppercase",letterSpacing:"0.15em",margin:"10px 0 6px"}}>🐉 Тиждень 2 · Сцени 8–14 · Спільний банк</div>
+          {renderWeek2Card()}
+          <div style={{fontSize:9,color:"#555",fontFamily:"monospace",textTransform:"uppercase",letterSpacing:"0.15em",margin:"10px 0 6px"}}>🌅 Тиждень 3 · Сцени 15–21</div>
+          {week3scenes.map(sc=>renderSceneCard(sc,sc.n))}
+        </>;
+      })()}
       {/* Бекап кнопки */}
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginTop:4}}>
         <button onClick={async()=>{
