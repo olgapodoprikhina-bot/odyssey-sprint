@@ -2255,8 +2255,8 @@ function App(){
             const checks=[
               {ok:workStarted,   label:"Починаю роботу"},
               {ok:anyQuestDone,  label:"Хоч один квест"},
-              {ok:advancedToday, label:"Погодувала дракончика"},
               {ok:tomorrowFilled,label:"План на завтра"},
+              {ok:advancedToday, label:"Погодувала дракончика"},
             ];
             return <div style={{display:"flex",gap:8,flexWrap:"wrap",justifyContent:"center",marginBottom:12}}>
               {checks.map((c,i)=><div key={i} style={{fontSize:11,color:c.ok?"#4ab870":"#888",display:"flex",alignItems:"center",gap:4,fontWeight:c.ok?600:400}}>
@@ -2267,8 +2267,9 @@ function App(){
           {!isDayOff&&(()=>{
             const workStarted=g.dayPhase==="work"||g.dayPhase==="flow";
             const allQuestsDone=g.dailyQuests.length>0&&g.dailyQuests.every(q=>q.done);
-            const canFeed=workStarted&&allQuestsDone;
-            const reason=!workStarted?"Спочатку натисни «Починаю роботу»":!allQuestsDone?"Виконай всі заплановані квести ("+dc+"/"+tc+")":"";
+            const tomorrowFilled=!!(g.tomorrowDayType&&(g.tomorrowActivity||"").trim());
+            const canFeed=workStarted&&allQuestsDone&&tomorrowFilled;
+            const reason=!workStarted?"Спочатку натисни «Починаю роботу»":!allQuestsDone?"Виконай всі заплановані квести ("+dc+"/"+tc+")" :!tomorrowFilled?"Заповни план на завтра":"";
             return <div style={{marginBottom:10}}>
               <button
                 disabled={advancedToday||!canFeed}
@@ -4434,7 +4435,7 @@ function App(){
                 files.forEach(file=>{
                   const reader=new FileReader();
                   reader.onload=async ev=>{
-                    const id=Date.now()+Math.random();
+                    const id=Date.now().toString(36)+"-"+Math.random().toString(36).slice(2);
                     const imgObj={id,data:ev.target.result};
                     await idbPut(imgObj);
                     setBankImages(prev=>[...prev,imgObj]);
