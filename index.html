@@ -490,7 +490,7 @@ function App(){
   // Shop accordion
   const [shopPurchasesOpen,setShopPurchasesOpen]=useState(false);
   // Home screen collapsible sections
-  const [homeOpen,setHomeOpen]=useState({sprint:true,time:false,spoons:false,constants:false,stats:false,day:false,break:false,tomorrow:false,nav:false,sprintTab:"calendar"});
+  const [homeOpen,setHomeOpen]=useState({sprint:true,time:false,spoons:false,constants:false,stats:false,day:false,break:false,tomorrow:false,nav:false});
   // Quests grouping
   const [questsGroupBy,setQuestsGroupBy]=useState("none"); // "none" | "notion" | "proj"
   // History
@@ -1697,6 +1697,15 @@ function App(){
   return <div style={{minHeight:"100vh",background:"#0d0f14",color:"#f0ece4",fontFamily:"system-ui,sans-serif",display:"flex",flexDirection:"column",maxWidth:500,margin:"0 auto"}}>
     {toast&&<div style={{position:"fixed",top:10,left:"50%",transform:"translateX(-50%)",padding:"9px 16px",borderRadius:20,background:toast.color,color:"#fff",fontSize:13,fontWeight:700,zIndex:9999,whiteSpace:"nowrap",maxWidth:"92%",textAlign:"center",boxShadow:"0 4px 20px #0008"}}>{toast.msg}</div>}
 
+    {/* ── Прилипаюча кнопка збереження ── */}
+    <button onClick={exportData} title="Зберегти дані"
+      style={{position:"fixed",top:10,right:10,zIndex:9998,width:38,height:38,borderRadius:"50%",
+        background:"rgba(74,143,212,0.18)",border:"1px solid rgba(74,143,212,0.45)",
+        color:"#4a8fd4",fontSize:17,cursor:"pointer",display:"flex",alignItems:"center",
+        justifyContent:"center",boxShadow:"0 2px 10px #0006",backdropFilter:"blur(6px)"}}>
+      💾
+    </button>
+
     {/* ── Todoist Settings modal ── */}
     {showTodoist&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.96)",zIndex:9999,display:"flex",flexDirection:"column",maxWidth:500,margin:"0 auto"}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"16px 16px 12px",borderBottom:"1px solid #1a1a1a",background:"#0d0f14"}}>
@@ -2352,20 +2361,7 @@ function App(){
         </div>
         {true&&<div style={{padding:"0 16px 14px"}}>
 
-        {/* Перемикач вкладок */}
-        <div style={{display:"flex",gap:4,marginBottom:12,background:"#0d0f14",borderRadius:8,padding:3}}>
-          {[{id:"calendar",l:"📅 Календар"},{id:"productivity",l:"📊 Продуктивність"}].map(tab=>{
-            const active=homeOpen.sprintTab===tab.id;
-            return <button key={tab.id} onClick={()=>setHomeOpen(p=>({...p,sprintTab:tab.id}))}
-              style={{flex:1,padding:"5px 0",borderRadius:6,border:"none",cursor:"pointer",fontSize:10,fontWeight:700,
-                background:active?"#1e2028":"transparent",color:active?"#c8a840":"#555",transition:"all 0.2s"}}>
-              {tab.l}
-            </button>;
-          })}
-        </div>
-
-        {/* ── ВКЛАДКА: КАЛЕНДАР ── */}
-        {homeOpen.sprintTab==="calendar"&&<>
+        {/* 3 тижні — крапки-дні */}
         <div style={{marginBottom:14}}>
           <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:"#555",marginBottom:6}}>
             <span>3 тижні · {effectiveSprintDay}/21 день</span>
@@ -2373,6 +2369,7 @@ function App(){
               {sprintDaysLeft===0?"⚠️ Останній день!":sprintDaysLeft===1?"⚠️ Залишився 1 день":sprintDaysLeft<=7?sprintDaysLeft+" днів залишилось":sprintDaysLeft+" днів"}
             </span>
           </div>
+          {/* 21 крапка — по 7 в ряд на тиждень */}
           <div style={{display:"flex",flexDirection:"column",gap:4}}>
             {[1,2,3].map(wk=>{
               const wkStart=(wk-1)*7,wkEnd=wk*7;
@@ -2384,10 +2381,11 @@ function App(){
                 </div>
                 <div style={{display:"flex",gap:3,flex:1}}>
                   {Array.from({length:7},(_,i)=>{
-                    const dayIdx=wkStart+i+1;
+                    const dayIdx=wkStart+i+1; // 1..21
                     const isPast=dayIdx<effectiveSprintDay;
                     const isToday=dayIdx===effectiveSprintDay;
                     const isWeekPast=isPastWeek;
+                    // Перевіряємо чи це вихідний день
                     const dayDate=g.sprintStartDate?new Date(new Date(g.sprintStartDate).getTime()+(dayIdx-1)*86400000).toISOString().slice(0,10):null;
                     const isDayOff=dayDate&&(g.dayOffDates||[]).includes(dayDate);
                     let bg,border;
@@ -2415,9 +2413,11 @@ function App(){
           </div>
         </div>
 
+        {/* Прогрес квестів по проектах */}
         <div style={{borderTop:"1px solid #1a1a1a",paddingTop:10}}>
           <div style={{fontSize:9,fontFamily:"monospace",letterSpacing:"0.12em",color:"#555",textTransform:"uppercase",marginBottom:8}}>Квести тижня {cw}</div>
           {PROJECTS.map(p=>{
+            const allQ=g.projects[p.id].weeks.flatMap(w=>w.quests);
             const wQ=g.projects[p.id].weeks[cw-1].quests;
             const done=wQ.filter(q=>q.done).length;
             const total=wQ.length;
@@ -2433,70 +2433,6 @@ function App(){
             </div>;
           })}
         </div>
-        </>}
-
-        {/* ── ВКЛАДКА: ПРОДУКТИВНІСТЬ ── */}
-        {homeOpen.sprintTab==="productivity"&&(()=>{
-          // Для кожного тижня: виконані та заплановані квести
-          // "Заплановані" = всі квести тижня (включаючи перенесені з попереднього тижня)
-          // тобто просто всі quests у weeks[wk-1]
-          const weekStats=[1,2,3].map(wk=>{
-            const allQ=PROJECTS.flatMap(p=>(g.projects[p.id]?.weeks[wk-1]?.quests||[]).filter(q=>!q.isMilestone));
-            const done=allQ.filter(q=>q.done).length;
-            const total=allQ.length;
-            const pct=total>0?Math.round(done/total*100):0;
-            const isCurrentWeek=wk===cw;
-            const isPastWeek=wk<cw;
-            const isFutureWeek=wk>cw;
-            return {wk,done,total,pct,isCurrentWeek,isPastWeek,isFutureWeek};
-          });
-          const totalDone=weekStats.reduce((s,w)=>s+w.done,0);
-          const totalAll=weekStats.reduce((s,w)=>s+w.total,0);
-          const totalPct=totalAll>0?Math.round(totalDone/totalAll*100):0;
-
-          return <div>
-            {/* Загальний підсумок */}
-            <div style={{background:"rgba(200,168,64,0.07)",border:"1px solid rgba(200,168,64,0.2)",borderRadius:10,padding:"10px 14px",marginBottom:12,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-              <div>
-                <div style={{fontSize:9,fontFamily:"monospace",color:"#c8a840",letterSpacing:"0.15em",textTransform:"uppercase",marginBottom:3}}>Спринт загалом</div>
-                <div style={{fontSize:20,fontWeight:900,color:"#f0ece4",fontFamily:"monospace"}}>{totalDone}<span style={{fontSize:12,color:"#555"}}>/{totalAll}</span></div>
-              </div>
-              <div style={{textAlign:"right"}}>
-                <div style={{fontSize:28,fontWeight:900,fontFamily:"monospace",color:totalPct>=70?"#4ab870":totalPct>=40?"#c8a840":"#e05555"}}>{totalPct}%</div>
-                <div style={{fontSize:9,color:"#555"}}>виконано</div>
-              </div>
-            </div>
-            {/* Загальний прогресбар */}
-            <div style={{height:6,background:"#111",borderRadius:3,overflow:"hidden",marginBottom:14}}>
-              <div style={{height:"100%",width:totalPct+"%",background:"linear-gradient(90deg,#c8a84099,#c8a840)",borderRadius:3,transition:"width 0.5s"}}/>
-            </div>
-
-            {/* По тижнях */}
-            {weekStats.map(({wk,done,total,pct,isCurrentWeek,isPastWeek,isFutureWeek})=>{
-              const weekColor=isPastWeek?"#4ab870":isCurrentWeek?"#c8a840":"#333";
-              const barColor=isPastWeek?"#4ab870":isCurrentWeek?(pct>=70?"#4ab870":pct>=40?"#c8a840":"#e05555"):"#252a35";
-              return <div key={wk} style={{marginBottom:10,opacity:isFutureWeek?0.4:1}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}>
-                  <div style={{display:"flex",alignItems:"center",gap:6}}>
-                    <div style={{width:18,height:18,borderRadius:"50%",background:isFutureWeek?"#1a1a1a":weekColor+"22",border:"2px solid "+weekColor,display:"flex",alignItems:"center",justifyContent:"center",fontSize:8,fontWeight:900,color:weekColor,fontFamily:"monospace"}}>
-                      {isPastWeek?"✓":wk}
-                    </div>
-                    <span style={{fontSize:12,fontWeight:700,color:weekColor}}>Тиждень {wk}</span>
-                    {isCurrentWeek&&<span style={{fontSize:9,color:"#c8a840",fontFamily:"monospace",background:"rgba(200,168,64,0.1)",padding:"1px 5px",borderRadius:4}}>зараз</span>}
-                    {isFutureWeek&&<span style={{fontSize:9,color:"#333",fontFamily:"monospace"}}>не розпочато</span>}
-                  </div>
-                  <div style={{fontFamily:"monospace",fontSize:11,color:"#555"}}>
-                    <span style={{color:isFutureWeek?"#333":pct>=70?"#4ab870":pct>=40?"#c8a840":"#e05555",fontWeight:700}}>{pct}%</span>
-                    <span style={{color:"#444",fontSize:10}}> · {done}/{total}</span>
-                  </div>
-                </div>
-                <div style={{height:8,background:"#111",borderRadius:4,overflow:"hidden"}}>
-                  <div style={{height:"100%",width:pct+"%",background:"linear-gradient(90deg,"+barColor+"99,"+barColor+")",borderRadius:4,transition:"width 0.5s"}}/>
-                </div>
-              </div>;
-            })}
-          </div>;
-        })()}
         </div>}
       </div>}
 
