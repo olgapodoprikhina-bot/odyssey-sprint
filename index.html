@@ -490,7 +490,9 @@ function App(){
   // Shop accordion
   const [shopPurchasesOpen,setShopPurchasesOpen]=useState(false);
   // Home screen collapsible sections
-  const [homeOpen,setHomeOpen]=useState({sprint:true,time:false,spoons:false,constants:false,stats:false,day:false,break:false,tomorrow:false,nav:false});
+  const [homeOpen,setHomeOpen]=useState({sprint:true,time:false,spoons:false,constants:false,stats:false,day:false,break:false,tomorrow:false,nav:false,sprintTab:"calendar"});
+  const [showCourseModal,setShowCourseModal]=useState(false);
+  const [courseForm,setCourseForm]=useState({name:"",days:"",startDate:new Date().toISOString().slice(0,10)});
   // Quests grouping
   const [questsGroupBy,setQuestsGroupBy]=useState("none"); // "none" | "notion" | "proj"
   // History
@@ -971,6 +973,12 @@ function App(){
   };
   const closeSprintConst=id=>{
     upd(p=>({...p,sprintConstants:(p.sprintConstants||[]).map(c=>c.id===id?{...c,active:false}:c)}));
+  };
+  const addCourseConst=(name,days,startDate)=>{
+    if(!name.trim()||!days||!startDate)return toast_("Заповни всі поля","#e05555");
+    const sc={id:Date.now(),name:name.trim(),type:"course",totalDays:parseInt(days),startDate,count:0,streak:0,lastDate:null,active:true};
+    upd(p=>({...p,sprintConstants:[...(p.sprintConstants||[]),sc]}));
+    toast_("🌿 Курс додано як константу","#4ab870");
   };
   const doneHabit=hid=>{
     if(g.dailyHabits.includes(hid))return;
@@ -1696,6 +1704,42 @@ function App(){
 
   return <div style={{minHeight:"100vh",background:"#0d0f14",color:"#f0ece4",fontFamily:"system-ui,sans-serif",display:"flex",flexDirection:"column",maxWidth:500,margin:"0 auto"}}>
     {toast&&<div style={{position:"fixed",top:10,left:"50%",transform:"translateX(-50%)",padding:"9px 16px",borderRadius:20,background:toast.color,color:"#fff",fontSize:13,fontWeight:700,zIndex:9999,whiteSpace:"nowrap",maxWidth:"92%",textAlign:"center",boxShadow:"0 4px 20px #0008"}}>{toast.msg}</div>}
+
+    {/* ── Модалка: Додати курс ── */}
+    {showCourseModal&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:10000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+      <div style={{background:"#161921",border:"1px solid #252a35",borderRadius:16,padding:24,width:"100%",maxWidth:400}}>
+        <div style={{fontFamily:"monospace",fontSize:11,letterSpacing:"0.15em",color:"#4ab870",textTransform:"uppercase",marginBottom:16}}>🌿 Новий курс</div>
+        <div style={{marginBottom:12}}>
+          <div style={{fontSize:11,color:"#888",marginBottom:4}}>Назва курсу</div>
+          <input value={courseForm.name} onChange={e=>setCourseForm(p=>({...p,name:e.target.value}))}
+            placeholder="Кефір з насінням льону"
+            style={{width:"100%",background:"#0d0f14",border:"1px solid #252a35",borderRadius:8,padding:"9px 11px",color:"#f0ece4",fontSize:13}}/>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:16}}>
+          <div>
+            <div style={{fontSize:11,color:"#888",marginBottom:4}}>Кількість днів</div>
+            <input type="number" min="1" max="365" value={courseForm.days} onChange={e=>setCourseForm(p=>({...p,days:e.target.value}))}
+              placeholder="30"
+              style={{width:"100%",background:"#0d0f14",border:"1px solid #252a35",borderRadius:8,padding:"9px 11px",color:"#f0ece4",fontSize:13}}/>
+          </div>
+          <div>
+            <div style={{fontSize:11,color:"#888",marginBottom:4}}>Дата початку</div>
+            <input type="date" value={courseForm.startDate} onChange={e=>setCourseForm(p=>({...p,startDate:e.target.value}))}
+              style={{width:"100%",background:"#0d0f14",border:"1px solid #252a35",borderRadius:8,padding:"9px 11px",color:"#f0ece4",fontSize:13}}/>
+          </div>
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={()=>setShowCourseModal(false)}
+            style={{flex:1,padding:"11px",background:"transparent",border:"1px solid #252a35",borderRadius:10,color:"#555",fontSize:13,cursor:"pointer"}}>
+            Скасувати
+          </button>
+          <button onClick={()=>{addCourseConst(courseForm.name,courseForm.days,courseForm.startDate);setShowCourseModal(false);setCourseForm({name:"",days:"",startDate:new Date().toISOString().slice(0,10)});}}
+            style={{flex:2,padding:"11px",background:"rgba(74,184,112,0.15)",border:"1px solid rgba(74,184,112,0.4)",borderRadius:10,color:"#4ab870",fontSize:13,fontWeight:700,cursor:"pointer"}}>
+            ✓ Додати курс
+          </button>
+        </div>
+      </div>
+    </div>}
 
     {/* ── Прилипаючі кнопки збереження/відновлення ── */}
     <div style={{position:"fixed",top:10,right:10,zIndex:9998,display:"flex",gap:6}}>
@@ -2509,6 +2553,7 @@ function App(){
             <div style={{fontFamily:"monospace",fontSize:9,letterSpacing:"0.15em",color:"#c8a840",textTransform:"uppercase"}}>🔁 Константи · {g.dailyHabits.length}/{HABITS.length}</div>
             <span style={{fontSize:14,color:"#888"}}>{homeOpen.constants?"▲":"▼"}</span>
           </button>
+          <button onClick={()=>setShowCourseModal(true)} style={{padding:"10px 12px",background:"transparent",border:"none",color:"#4ab870",fontSize:11,cursor:"pointer",borderLeft:"1px solid #252a35",whiteSpace:"nowrap"}}>+ Курс</button>
           <button onClick={()=>setScreen("habits")} style={{padding:"12px",background:"transparent",border:"none",color:"#4a8fd4",fontSize:11,cursor:"pointer",borderLeft:"1px solid #252a35"}}>→</button>
         </div>
         {homeOpen.constants&&<div style={{padding:"0 14px 14px"}}>
@@ -4077,22 +4122,50 @@ function App(){
           {active.map(c=>{
             const today=new Date().toISOString().slice(0,10);
             const donedToday=c.lastDate===today;
-            return <div key={c.id} style={{background:donedToday?"rgba(200,168,64,0.08)":"rgba(255,255,255,0.03)",border:"1px solid "+(donedToday?"rgba(200,168,64,0.3)":"#252a35"),borderRadius:10,padding:"12px 14px",marginBottom:8}}>
+            const isCourse=c.type==="course";
+            // Розрахунок відліку для курсу
+            let daysLeft=null, daysPassed=0, courseProgress=0, courseExpired=false;
+            if(isCourse&&c.startDate&&c.totalDays){
+              const start=new Date(c.startDate);
+              const now=new Date();
+              daysPassed=Math.floor((now-start)/86400000);
+              daysLeft=c.totalDays-daysPassed;
+              courseProgress=Math.min(100,Math.round(daysPassed/c.totalDays*100));
+              courseExpired=daysLeft<0;
+            }
+            const accentColor=isCourse?"#4ab870":"#c8a840";
+            const doneBg=isCourse?"rgba(74,184,112,0.08)":"rgba(200,168,64,0.08)";
+            const doneBorder=isCourse?"rgba(74,184,112,0.3)":"rgba(200,168,64,0.3)";
+            return <div key={c.id} style={{background:donedToday?doneBg:"rgba(255,255,255,0.03)",border:"1px solid "+(donedToday?doneBorder:"#252a35"),borderRadius:10,padding:"12px 14px",marginBottom:8}}>
               <div style={{display:"flex",alignItems:"center",gap:10}}>
                 <button onClick={()=>doneSprintConst(c.id)} disabled={donedToday}
-                  style={{width:32,height:32,borderRadius:"50%",flexShrink:0,background:donedToday?"rgba(200,168,64,0.3)":"transparent",border:"2px solid "+(donedToday?"#c8a840":"#333"),display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,cursor:donedToday?"default":"pointer"}}>
-                  {donedToday?"✓":""}
+                  style={{width:32,height:32,borderRadius:"50%",flexShrink:0,
+                    background:donedToday?"rgba(74,184,112,0.25)":"transparent",
+                    border:"2px solid "+(donedToday?accentColor:"#333"),
+                    display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,cursor:donedToday?"default":"pointer"}}>
+                  {donedToday?"✓":isCourse?"🌿":""}
                 </button>
                 <div style={{flex:1}}>
                   <div style={{fontSize:13,fontWeight:600,color:"#f0ece4"}}>{c.name}</div>
-                  <div style={{fontSize:11,color:"#555",marginTop:2}}>
-                    🔥 {c.streak} серія · {c.count} разів всього
-                    {c.projId&&<span style={{marginLeft:6,color:PROJECTS.find(p=>p.id===c.projId)?.color||"#555"}}>{PROJECTS.find(p=>p.id===c.projId)?.emoji} {c.projId}</span>}
-                  </div>
+                  {isCourse
+                    ?<div style={{marginTop:4}}>
+                      <div style={{fontSize:11,color:courseExpired?"#e05555":daysLeft<=3?"#d4804a":accentColor,fontWeight:700,marginBottom:4}}>
+                        {courseExpired?"⏰ Курс завершено":"🌿 залишилось "+daysLeft+" дн. · день "+Math.min(daysPassed+1,c.totalDays)+"/"+c.totalDays}
+                      </div>
+                      <div style={{height:4,background:"#111",borderRadius:2,overflow:"hidden"}}>
+                        <div style={{height:"100%",width:courseProgress+"%",background:"linear-gradient(90deg,#4ab87099,#4ab870)",borderRadius:2,transition:"width 0.5s"}}/>
+                      </div>
+                      <div style={{fontSize:10,color:"#555",marginTop:3}}>🔥 {c.streak} підряд · {c.count} разів виконано</div>
+                    </div>
+                    :<div style={{fontSize:11,color:"#555",marginTop:2}}>
+                      🔥 {c.streak} серія · {c.count} разів всього
+                      {c.projId&&<span style={{marginLeft:6,color:PROJECTS.find(p=>p.id===c.projId)?.color||"#555"}}>{PROJECTS.find(p=>p.id===c.projId)?.emoji} {c.projId}</span>}
+                    </div>
+                  }
                 </div>
                 <button onClick={()=>closeSprintConst(c.id)} title="Закрити константу"
                   style={{fontSize:11,color:"#444",background:"transparent",border:"1px solid #252a35",borderRadius:8,padding:"3px 8px",cursor:"pointer"}}>
-                  Закрити
+                  ✕
                 </button>
               </div>
             </div>;
