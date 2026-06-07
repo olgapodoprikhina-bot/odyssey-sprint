@@ -4751,7 +4751,7 @@ function App(){
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
             <div style={{display:"flex",flexDirection:"column",gap:6}}>
               <div style={{fontSize:10,color:"#555",fontFamily:"monospace",textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:2}}>Витратити</div>
-              {[{l:"−1 Легка",n:1},{l:"−2 Важка",n:2},{l:"−3 Гіперфокус",n:3}].map(b=><button key={b.l}
+              {[{l:"−1 Легка робота",n:1},{l:"−2 Важка робота",n:2},{l:"−2 Стрес/конфлікт",n:2},{l:"−1 Гра 30хв",n:1},{l:"−3 Гіперфокус",n:3}].map(b=><button key={b.l}
                 onClick={()=>upd(p=>({...p,spoons:{...p.spoons,current:Math.max(0,(p.spoons?.current??10)-b.n)}}))}
                 disabled={sp===0}
                 style={{background:"rgba(212,128,74,0.1)",border:"1px solid rgba(212,128,74,0.3)",borderRadius:8,padding:"8px",color:"#d4804a",fontSize:12,fontWeight:600,cursor:"pointer",opacity:sp===0?0.4:1}}>
@@ -4760,7 +4760,7 @@ function App(){
             </div>
             <div style={{display:"flex",flexDirection:"column",gap:6}}>
               <div style={{fontSize:10,color:"#555",fontFamily:"monospace",textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:2}}>Поповнити</div>
-              {[{l:"+1 Відпочинок",n:1},{l:"+2 Прогулянка",n:2},{l:"+2 Хороший сон",n:2}].map(b=><button key={b.l}
+              {[{l:"+1 Відпочинок 20хв",n:1},{l:"+2 Прогулянка/їжа",n:2},{l:"+1 Завершила задачу",n:1},{l:"+2 Хороший сон",n:2}].map(b=><button key={b.l}
                 onClick={()=>upd(p=>({...p,spoons:{...p.spoons,current:Math.min(p.spoons?.max??10,(p.spoons?.current??10)+b.n)}}))}
                 disabled={sp>=mx}
                 style={{background:"rgba(74,184,112,0.1)",border:"1px solid rgba(74,184,112,0.3)",borderRadius:8,padding:"8px",color:"#4ab870",fontSize:12,fontWeight:600,cursor:"pointer",opacity:sp>=mx?0.4:1}}>
