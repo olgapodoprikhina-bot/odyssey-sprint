@@ -3058,10 +3058,13 @@ function App(){
           {notionSaving?"⏳ Зберігаю...":"📓 Зберегти день в Notion"}
         </button>
         <input ref={importRef} type="file" accept=".json" style={{display:"none"}} onChange={importData}/>
-        <button onClick={()=>{
+        <button onClick={async()=>{
           const scene=parseInt(prompt("Введи номер сцени (1-21):")||"0");
           if(scene>=1&&scene<=21){
-            upd(p=>({...p,dragonScene:scene}));
+            const newG={...g,dragonScene:scene};
+            setG(newG);
+            save(newG);
+            if(window.fbSave) await window.fbSave(newG);
             toast_("🐉 Сцена "+scene+" встановлена","#4ab870");
           }
         }} style={{background:"rgba(184,122,219,0.08)",border:"1px solid rgba(184,122,219,0.3)",borderRadius:10,padding:"12px",color:"#b87adb",fontSize:13,gridColumn:"1/-1"}}>🐉 Встановити сцену дракончика</button>
