@@ -2746,29 +2746,56 @@ function App(){
         </div>)}
       </div>}
 
-      {/* ══ ПОРЯДОК ДНЯ ══ */}
+      {/* ══ ПОРЯДОК ДНЯ / ПЕРЕРВА / ЗАВТРА — єдиний блок з вкладками ══ */}
       {(()=>{
         const ph=g.dayPhase||"ritual";
         const wt=g.workType||null;
         const fmtTimer=s=>Math.floor(s/60)+":"+(s%60).toString().padStart(2,"0");
+        const breaks=(g.breaks||[]).slice().sort((a,b)=>b.from.localeCompare(a.from));
+        const diffDays=(a,b)=>Math.round((new Date(b)-new Date(a))/86400000)+1;
+        const tt=g.tomorrowDayType||null;
+        const filled=tt&&(g.tomorrowActivity||"").trim();
+        const wf=!!g.workFinished;
+        const dayTab=homeOpen.dayTab||"day";
         return <div style={{background:"rgba(255,255,255,0.02)",border:"1px solid #1e2230",borderRadius:12,overflow:"hidden"}}>
-          <button onClick={()=>setHomeOpen(p=>({...p,day:!p.day}))} style={{width:"100%",display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 16px",background:"transparent",border:"none",color:"#f0ece4",cursor:"pointer"}}>
+          {/* Шапка */}
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 16px",borderBottom:"1px solid #1a1a1a"}}>
             <div style={{display:"flex",alignItems:"center",gap:10}}>
-              <div style={{fontSize:10,color:"#aaa",fontFamily:"monospace",textTransform:"uppercase",letterSpacing:"0.1em"}}>Порядок дня</div>
-              <div style={{display:"flex",gap:4}}>
-                {["ritual","work","flow"].map((p,i)=><div key={p} style={{width:8,height:8,borderRadius:"50%",background:ph===p?"#c8a840":["ritual","work","flow"].indexOf(ph)>i?"#4ab870":"#2a2820"}}/>)}
+              <div style={{fontSize:10,color:"#aaa",fontFamily:"monospace",textTransform:"uppercase",letterSpacing:"0.1em"}}>
+                {dayTab==="day"?"Порядок дня":dayTab==="break"?"Перерва в роботі":"🌙 Підготовка до завтра"}
               </div>
+              {dayTab==="day"&&<div style={{display:"flex",gap:4}}>
+                {["ritual","work","flow"].map((p,i)=><div key={p} style={{width:8,height:8,borderRadius:"50%",background:ph===p?"#c8a840":["ritual","work","flow"].indexOf(ph)>i?"#4ab870":"#2a2820"}}/>)}
+              </div>}
+              {dayTab==="break"&&breaks.length>0&&<span style={{fontSize:10,color:"#9b59b6"}}>· {breaks.length}</span>}
+              {dayTab==="tomorrow"&&filled&&<span style={{fontSize:11,color:"#4ab870"}}>✓</span>}
             </div>
-            <div style={{display:"flex",alignItems:"center",gap:8}}>
-              <button onClick={e=>{e.stopPropagation();toggleDayOff();}} style={{fontSize:10,padding:"3px 10px",borderRadius:10,border:"1px solid "+(g.isDayOff?"rgba(184,122,219,0.5)":"#252a35"),background:g.isDayOff?"rgba(184,122,219,0.15)":"transparent",color:g.isDayOff?"#b87adb":"#444",cursor:"pointer",fontWeight:g.isDayOff?700:400}}>
+            <div style={{display:"flex",alignItems:"center",gap:6}}>
+              {dayTab==="day"&&<button onClick={e=>{e.stopPropagation();toggleDayOff();}} style={{fontSize:10,padding:"3px 10px",borderRadius:10,border:"1px solid "+(g.isDayOff?"rgba(184,122,219,0.5)":"#252a35"),background:g.isDayOff?"rgba(184,122,219,0.15)":"transparent",color:g.isDayOff?"#b87adb":"#444",cursor:"pointer",fontWeight:g.isDayOff?700:400}}>
                 {g.isDayOff?"🌿 Вихідний":"☀️ Вихідний?"}
-              </button>
-              <span style={{fontSize:14,color:"#888"}}>{homeOpen.day?"▲":"▼"}</span>
+              </button>}
+              {dayTab==="break"&&<button onClick={e=>{e.stopPropagation();setBreakForm({from:"",to:"",note:""});setShowBreakModal(true);}}
+                style={{fontSize:11,color:"#9b59b6",background:"rgba(155,89,182,0.1)",border:"1px solid rgba(155,89,182,0.3)",borderRadius:8,padding:"4px 12px",cursor:"pointer"}}>+ Додати</button>}
             </div>
-          </button>
-          {homeOpen.day&&<div style={{padding:"0 16px 14px"}}>
+          </div>
 
-          {/* ── Вихідний режим ── */}
+          {/* Перемикач вкладок */}
+          <div style={{display:"flex",gap:0,background:"#0d0f14",borderBottom:"1px solid #1a1a1a"}}>
+            {[{id:"day",l:"☀️ День"},{id:"break",l:"☕ Перерва"},{id:"tomorrow",l:"🌙 Завтра"}].map(tab=>{
+              const active=dayTab===tab.id;
+              return <button key={tab.id} onClick={()=>setHomeOpen(p=>({...p,dayTab:tab.id}))}
+                style={{flex:1,padding:"8px 4px",border:"none",cursor:"pointer",fontSize:10,fontWeight:700,
+                  background:active?"#161921":"transparent",
+                  color:active?"#c8a840":"#555",
+                  borderBottom:active?"2px solid #c8a840":"2px solid transparent",
+                  transition:"all 0.2s"}}>
+                {tab.l}
+              </button>;
+            })}
+          </div>
+
+          {/* ── ВКЛАДКА: ДЕНЬ ── */}
+          {dayTab==="day"&&<div style={{padding:"14px 16px"}}>
           {g.isDayOff&&<>
             <div style={{background:"rgba(184,122,219,0.08)",border:"1px solid rgba(184,122,219,0.3)",borderRadius:10,padding:"16px",textAlign:"center"}}>
               <div style={{fontSize:28,marginBottom:8}}>🌿</div>
@@ -2779,10 +2806,7 @@ function App(){
               🎯 Квести за бажанням →
             </button>
           </>}
-
-          {/* ── Фаза: ритуал ── */}
           {!g.isDayOff&&ph==="ritual"&&<>
-            {/* Що заплановано вчора */}
             {(g.tomorrowActivity||g.tomorrowPlan)
               ?<div style={{background:"rgba(200,168,64,0.08)",border:"1px solid rgba(200,168,64,0.25)",borderRadius:10,padding:"12px 14px",marginBottom:14}}>
                 <div style={{fontSize:10,color:"#886830",fontFamily:"monospace",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:5}}>🌙 Ти запланувала вчора</div>
@@ -2795,14 +2819,9 @@ function App(){
                 Вчора план не заповнено — заповни ввечері 👇
               </div>
             }
-            {/* Крок ритуалу */}
             <div style={{background:"rgba(200,168,64,0.06)",border:"1px solid rgba(200,168,64,0.2)",borderRadius:10,padding:"16px",marginBottom:12}}>
               <div style={{fontSize:13,color:"#f0ece4",lineHeight:1.6,marginBottom:14}}>
-                {wt==="digital"
-                  ?"🖥️ Відкриваю CLO3D і дивлюсь на файл — без дій, просто дивлюсь 2 хвилини"
-                  :wt==="manual"
-                  ?"🧵 Розкладаю тканину і дивлюсь — що хочу зробити сьогодні (2 хвилини)"
-                  :"⚡ Сідаю за стіл, дивлюсь на план і нічого не роблю — просто присутня (2 хвилини)"}
+                {wt==="digital"?"🖥️ Відкриваю CLO3D і дивлюсь на файл — без дій, просто дивлюсь 2 хвилини":wt==="manual"?"🧵 Розкладаю тканину і дивлюсь — що хочу зробити сьогодні (2 хвилини)":"⚡ Сідаю за стіл, дивлюсь на план і нічого не роблю — просто присутня (2 хвилини)"}
               </div>
               {timerLeft===null
                 ?<button onClick={()=>startTimer(120)}
@@ -2813,32 +2832,22 @@ function App(){
                   <div style={{fontSize:52,fontWeight:700,color:timerDone?"#4ab870":"#c8a840",fontFamily:"monospace",letterSpacing:"0.05em",marginBottom:6}}>
                     {timerDone?"✓ ГОТОВО":fmtTimer(timerLeft)}
                   </div>
-                  <div style={{fontSize:11,color:timerDone?"#4ab870":"#555"}}>
-                    {timerRunning?"Тримай фокус...":timerDone?"Таймер завершено":""}
-                  </div>
+                  <div style={{fontSize:11,color:timerDone?"#4ab870":"#555"}}>{timerRunning?"Тримай фокус...":timerDone?"Таймер завершено":""}</div>
                 </div>
               }
             </div>
             <button disabled={!timerDone}
               onClick={()=>{
                 const bonus=calcStartBonus(new Date());
-                upd(p=>({...p,dayPhase:"work",lastSpoonsReminder:Date.now(),
-                  mana:bonus&&bonus.mana>0?p.mana+bonus.mana:p.mana,
-                }));
+                upd(p=>({...p,dayPhase:"work",lastSpoonsReminder:Date.now(),mana:bonus&&bonus.mana>0?p.mana+bonus.mana:p.mana}));
                 setTimerLeft(null);setTimerDone(false);
-                setSpoonsReminderType("ritual");
-                setShowSpoonsReminder(true);
-                if(bonus){
-                  setStartBonus(bonus);
-                  setTimeout(()=>setStartBonus(null),2600);
-                }
+                setSpoonsReminderType("ritual");setShowSpoonsReminder(true);
+                if(bonus){setStartBonus(bonus);setTimeout(()=>setStartBonus(null),2600);}
               }}
               style={{width:"100%",background:timerDone?"rgba(74,143,212,0.15)":"rgba(255,255,255,0.03)",border:"1px solid "+(timerDone?"rgba(74,143,212,0.5)":"#1e2028"),borderRadius:8,padding:"12px",color:timerDone?"#4a8fd4":"#333",fontSize:14,fontWeight:700,cursor:timerDone?"pointer":"not-allowed",transition:"all 0.3s"}}>
               ⚡ Починаю роботу {timerDone?"→":"(зачекай таймер)"}
             </button>
           </>}
-
-          {/* ── Фаза: робота ── */}
           {!g.isDayOff&&ph==="work"&&<>
             <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
               <span style={{fontSize:24}}>⚡</span>
@@ -2846,24 +2855,17 @@ function App(){
                 <div style={{fontSize:13,fontWeight:700,color:"#4a8fd4"}}>Режим роботи</div>
                 <div style={{fontSize:11,color:"#555",marginTop:2}}>{wt==="digital"?"🖥️ Цифрова":wt==="manual"?"🧵 Ручна":"⚡ Активна"} · {dc}/{tc} квестів виконано</div>
               </div>
-              <button onClick={()=>setScreen("quests")}
-                style={{fontSize:11,color:"#4a8fd4",background:"rgba(74,143,212,0.1)",border:"1px solid rgba(74,143,212,0.3)",borderRadius:8,padding:"6px 12px",cursor:"pointer"}}>
-                Квести →
-              </button>
+              <button onClick={()=>setScreen("quests")} style={{fontSize:11,color:"#4a8fd4",background:"rgba(74,143,212,0.1)",border:"1px solid rgba(74,143,212,0.3)",borderRadius:8,padding:"6px 12px",cursor:"pointer"}}>Квести →</button>
             </div>
             {dc>0
               ?<button onClick={()=>{setFlowSpoonsInput(null);setShowFlowCheck(true);}}
                 style={{width:"100%",background:"rgba(200,168,64,0.12)",border:"1px solid rgba(200,168,64,0.35)",borderRadius:8,padding:"12px",color:"#c8a840",fontSize:13,fontWeight:700,cursor:"pointer"}}>
                 🌊 Відкрити Потік →
               </button>
-              :<div style={{fontSize:12,color:"#444",textAlign:"center",padding:"10px 0",lineHeight:1.5}}>
-                Виконай хоча б один квест — відкриється Потік
-              </div>
+              :<div style={{fontSize:12,color:"#444",textAlign:"center",padding:"10px 0",lineHeight:1.5}}>Виконай хоча б один квест — відкриється Потік</div>
             }
           </>}
-
-          {/* ── Фаза: потік ── */}
-          {(!g.isDayOff&&ph==="flow"||g.isDayOff)&&<>
+          {!g.isDayOff&&ph==="flow"&&<>
             <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
               <span style={{fontSize:24}}>🌊</span>
               <div>
@@ -2871,55 +2873,25 @@ function App(){
                 <div style={{fontSize:11,color:"#555",marginTop:2}}>{dc} квест{dc===1?"":"и"} виконано · {(g.flowDone||[]).length} flow-активності</div>
               </div>
             </div>
-            <button onClick={()=>setScreen("flow")}
-              style={{width:"100%",background:"rgba(200,168,64,0.1)",border:"1px solid rgba(200,168,64,0.3)",borderRadius:8,padding:"11px",color:"#c8a840",fontSize:13,fontWeight:600,cursor:"pointer"}}>
-              🎨 Перейти до Потоку
-            </button>
+            <button onClick={()=>setScreen("flow")} style={{width:"100%",background:"rgba(200,168,64,0.1)",border:"1px solid rgba(200,168,64,0.3)",borderRadius:8,padding:"11px",color:"#c8a840",fontSize:13,fontWeight:600,cursor:"pointer"}}>🎨 Перейти до Потоку</button>
           </>}
           </div>}
-        </div>;
-      })()}
 
-      {/* ══ ПЕРЕРВА В РОБОТІ ══ */}
-      {(()=>{
-        const breaks=(g.breaks||[]).slice().sort((a,b)=>b.from.localeCompare(a.from));
-        const diffDays=(a,b)=>Math.round((new Date(b)-new Date(a))/86400000)+1;
-        return <div style={{background:"rgba(155,89,182,0.05)",border:"1px solid rgba(155,89,182,0.2)",borderRadius:12,overflow:"hidden"}}>
-          <button onClick={()=>setHomeOpen(p=>({...p,break:!p.break}))} style={{width:"100%",display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 16px",background:"transparent",border:"none",color:"#f0ece4",cursor:"pointer"}}>
-            <div style={{fontSize:10,color:"#9b59b6",fontFamily:"monospace",textTransform:"uppercase",letterSpacing:"0.1em"}}>☕ Перерва в роботі {breaks.length>0?"· "+breaks.length:""}</div>
-            <div style={{display:"flex",alignItems:"center",gap:8}}>
-              <button onClick={e=>{e.stopPropagation();setBreakForm({from:"",to:"",note:""});setShowBreakModal(true);}}
-                style={{fontSize:11,color:"#9b59b6",background:"rgba(155,89,182,0.1)",border:"1px solid rgba(155,89,182,0.3)",borderRadius:8,padding:"4px 12px",cursor:"pointer"}}>+ Додати</button>
-              <span style={{fontSize:14,color:"#888"}}>{homeOpen.break?"▲":"▼"}</span>
-            </div>
-          </button>
-          {homeOpen.break&&<div style={{padding:"0 16px 14px"}}>
-          {breaks.length===0&&<div style={{fontSize:11,color:"#333",marginTop:6}}>Немає записаних перерв</div>}
-          {breaks.map(br=><div key={br.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:"1px solid #1a1a1a"}}>
-            <div style={{flex:1}}>
-              <div style={{fontSize:12,color:"#b87adb",fontWeight:600}}>{br.from} → {br.to} <span style={{fontWeight:400,color:"#555"}}>({diffDays(br.from,br.to)} дн.)</span></div>
-              {br.note&&<div style={{fontSize:11,color:"#555",marginTop:2}}>{br.note}</div>}
-            </div>
-            <button onClick={()=>upd(p=>({...p,breaks:p.breaks.filter(x=>x.id!==br.id)}))}
-              style={{fontSize:12,color:"#333",background:"transparent",border:"none",cursor:"pointer",padding:"4px"}}>×</button>
-          </div>)}
+          {/* ── ВКЛАДКА: ПЕРЕРВА ── */}
+          {dayTab==="break"&&<div style={{padding:"14px 16px"}}>
+            {breaks.length===0&&<div style={{fontSize:11,color:"#333",marginTop:2}}>Немає записаних перерв</div>}
+            {breaks.map(br=><div key={br.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:"1px solid #1a1a1a"}}>
+              <div style={{flex:1}}>
+                <div style={{fontSize:12,color:"#b87adb",fontWeight:600}}>{br.from} → {br.to} <span style={{fontWeight:400,color:"#555"}}>({diffDays(br.from,br.to)} дн.)</span></div>
+                {br.note&&<div style={{fontSize:11,color:"#555",marginTop:2}}>{br.note}</div>}
+              </div>
+              <button onClick={()=>upd(p=>({...p,breaks:p.breaks.filter(x=>x.id!==br.id)}))}
+                style={{fontSize:12,color:"#333",background:"transparent",border:"none",cursor:"pointer",padding:"4px"}}>×</button>
+            </div>)}
           </div>}
-        </div>;
-      })()}
 
-      {/* ══ ПІДГОТОВКА ДО ЗАВТРА ══ */}
-      {(()=>{
-        const tt=g.tomorrowDayType||null;
-        const filled=tt&&(g.tomorrowActivity||"").trim();
-        const wf=!!g.workFinished;
-        return <div style={{background:"rgba(255,255,255,0.02)",border:"1px solid #1e2230",borderRadius:12,overflow:"hidden"}}>
-          <button onClick={()=>setHomeOpen(p=>({...p,tomorrow:!p.tomorrow}))} style={{width:"100%",display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 16px",background:"transparent",border:"none",color:"#f0ece4",cursor:"pointer"}}>
-            <div style={{fontSize:10,color:"#aaa",fontFamily:"monospace",textTransform:"uppercase",letterSpacing:"0.1em"}}>🌙 Підготовка до завтра{filled?" ✓":""}</div>
-            <span style={{fontSize:14,color:"#888"}}>{homeOpen.tomorrow?"▲":"▼"}</span>
-          </button>
-          {homeOpen.tomorrow&&<div style={{padding:"0 16px 14px"}}>
-
-            {/* ── ЗАВЕРШЕННЯ РОБОТИ 18:30 ── */}
+          {/* ── ВКЛАДКА: ЗАВТРА ── */}
+          {dayTab==="tomorrow"&&<div style={{padding:"14px 16px"}}>
             {!wf
               ?<button onClick={()=>{
                   const bonus=calcEveningBonus(new Date());
@@ -2937,34 +2909,20 @@ function App(){
                 </div>
               </div>
             }
-
-            {/* ── ПЛАН НА ВЕЧІР ── */}
             <div style={{fontSize:10,color:"#888",fontFamily:"monospace",textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:8}}>Чим плануєш займатись ввечері?</div>
-            <textarea
-              value={g.eveningActivity||""}
-              onChange={e=>upd(p=>({...p,eveningActivity:e.target.value}))}
-              placeholder="Прогулянка, серіал, книга, хобі..."
-              rows={2}
-              style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid #252a35",borderRadius:8,padding:"10px 12px",color:"#f0ece4",fontSize:13,resize:"none",lineHeight:1.5,fontFamily:"system-ui,sans-serif",outline:"none",marginBottom:16,boxSizing:"border-box"}}
-            />
-
+            <textarea value={g.eveningActivity||""} onChange={e=>upd(p=>({...p,eveningActivity:e.target.value}))}
+              placeholder="Прогулянка, серіал, книга, хобі..." rows={2}
+              style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid #252a35",borderRadius:8,padding:"10px 12px",color:"#f0ece4",fontSize:13,resize:"none",lineHeight:1.5,fontFamily:"system-ui,sans-serif",outline:"none",marginBottom:16,boxSizing:"border-box"}}/>
             <div style={{fontSize:11,color:"#555",marginBottom:12,lineHeight:1.5}}>А тепер — план на завтра ↓</div>
-
-            {/* Крок 1: Тип дня */}
             <div style={{fontSize:10,color:"#555",fontFamily:"monospace",textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:8}}>Завтра буде...</div>
             <div style={{display:"flex",gap:8,marginBottom:14}}>
-              {[
-                {id:"work",e:"💼",l:"Робочий день",c:"#4a8fd4",bg:"rgba(74,143,212,0.1)",bc:"rgba(74,143,212,0.4)"},
-                {id:"dayoff",e:"🌿",l:"Вихідний",c:"#4ab870",bg:"rgba(74,184,112,0.1)",bc:"rgba(74,184,112,0.4)"},
-              ].map(opt=><button key={opt.id}
+              {[{id:"work",e:"💼",l:"Робочий день",c:"#4a8fd4",bg:"rgba(74,143,212,0.1)",bc:"rgba(74,143,212,0.4)"},{id:"dayoff",e:"🌿",l:"Вихідний",c:"#4ab870",bg:"rgba(74,184,112,0.1)",bc:"rgba(74,184,112,0.4)"}].map(opt=><button key={opt.id}
                 onClick={()=>upd(p=>({...p,tomorrowDayType:p.tomorrowDayType===opt.id?null:opt.id}))}
                 style={{flex:1,background:tt===opt.id?opt.bg:"rgba(255,255,255,0.03)",border:"2px solid "+(tt===opt.id?opt.bc:"#252a35"),borderRadius:10,padding:"10px 6px",textAlign:"center",color:tt===opt.id?opt.c:"#555",cursor:"pointer",transition:"all 0.2s"}}>
                 <div style={{fontSize:22,marginBottom:4}}>{opt.e}</div>
                 <div style={{fontSize:12,fontWeight:700}}>{opt.l}</div>
               </button>)}
             </div>
-
-            {/* Крок 2: Час початку (тільки якщо обрано тип) */}
             {tt&&<>
               <div style={{fontSize:10,color:"#555",fontFamily:"monospace",textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:8}}>
                 {tt==="work"?"О котрій починаю роботу":"О котрій прокидаюсь / починаю день"}
@@ -2976,32 +2934,24 @@ function App(){
                   {t}
                 </button>)}
               </div>
-
-              {/* Крок 3: Що робитиму */}
               <div style={{fontSize:10,color:"#555",fontFamily:"monospace",textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:8}}>
                 {tt==="work"?"Головне завдання дня":"Як планую провести вихідний"}
               </div>
-              <textarea
-                value={g.tomorrowActivity||""}
-                onChange={e=>upd(p=>({...p,tomorrowActivity:e.target.value}))}
-                placeholder={tt==="work"?"О "+g.tomorrowStartTime+" я починаю з...":"Планую відпочити / піти на..."}
-                rows={3}
-                style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid #252a35",borderRadius:8,padding:"10px 12px",color:"#f0ece4",fontSize:13,resize:"none",lineHeight:1.5,fontFamily:"system-ui,sans-serif",outline:"none",marginBottom:10,boxSizing:"border-box"}}
-              />
+              <textarea value={g.tomorrowActivity||""} onChange={e=>upd(p=>({...p,tomorrowActivity:e.target.value}))}
+                placeholder={tt==="work"?"О "+g.tomorrowStartTime+" я починаю з...":"Планую відпочити / піти на..."} rows={3}
+                style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid #252a35",borderRadius:8,padding:"10px 12px",color:"#f0ece4",fontSize:13,resize:"none",lineHeight:1.5,fontFamily:"system-ui,sans-serif",outline:"none",marginBottom:10,boxSizing:"border-box"}}/>
             </>}
-
-            {/* Тип роботи (тільки для робочого дня) */}
             {tt==="work"&&<>
               <div style={{fontSize:10,color:"#555",fontFamily:"monospace",textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:8}}>Тип роботи</div>
               <div style={{display:"flex",gap:8}}>
                 {[{id:"digital",e:"🖥️",l:"Цифрова",sub:"CLO3D · фріланс",c:"#4a8fd4",bg:"rgba(74,143,212,0.1)",bc:"rgba(74,143,212,0.4)"},{id:"manual",e:"🧵",l:"Ручна",sub:"Шити · конструювати",c:"#b87adb",bg:"rgba(184,122,219,0.1)",bc:"rgba(184,122,219,0.4)"}].map(opt=>{
-                  const wt=g.workType||null;
+                  const wt2=g.workType||null;
                   return <button key={opt.id}
                     onClick={()=>upd(p=>({...p,workType:p.workType===opt.id?null:opt.id}))}
-                    style={{flex:1,background:wt===opt.id?opt.bg:"rgba(255,255,255,0.03)",border:"2px solid "+(wt===opt.id?opt.bc:"#252a35"),borderRadius:10,padding:"10px 6px",textAlign:"center",color:wt===opt.id?opt.c:"#555",cursor:"pointer",transition:"all 0.2s"}}>
+                    style={{flex:1,background:wt2===opt.id?opt.bg:"rgba(255,255,255,0.03)",border:"2px solid "+(wt2===opt.id?opt.bc:"#252a35"),borderRadius:10,padding:"10px 6px",textAlign:"center",color:wt2===opt.id?opt.c:"#555",cursor:"pointer",transition:"all 0.2s"}}>
                     <div style={{fontSize:20,marginBottom:4}}>{opt.e}</div>
                     <div style={{fontSize:12,fontWeight:700}}>{opt.l}</div>
-                    <div style={{fontSize:9,color:wt===opt.id?opt.c+"99":"#333",marginTop:2}}>{opt.sub}</div>
+                    <div style={{fontSize:9,color:wt2===opt.id?opt.c+"99":"#333",marginTop:2}}>{opt.sub}</div>
                   </button>;
                 })}
               </div>
