@@ -504,6 +504,8 @@ function App(){
   const [now,setNow]=useState(new Date());
   const [showRetreatFlash,setShowRetreatFlash]=useState(false);
   const [showSpoonsReminder,setShowSpoonsReminder]=useState(false);
+  const [showSosAlert,setShowSosAlert]=useState(false);
+  const [sosQuestId,setSosQuestId]=useState(null);
   const [spoonsReminderType,setSpoonsReminderType]=useState("auto");
   const [startBonus,setStartBonus]=useState(null); // {level,mana} | null // для лічильника 9:00
   const [eveningBonus,setEveningBonus]=useState(null); // аналог для 18:30
@@ -733,6 +735,19 @@ function App(){
   const upd=useCallback(p=>{setG(prev=>{const next=typeof p==="function"?p(prev):{...prev,...p};save(next);return next;});},[save]);
   const toast_=(msg,color="#c8a840")=>{if(tRef.current)clearTimeout(tRef.current);setToast({msg,color});tRef.current=setTimeout(()=>setToast(null),2500);};
 
+  // SOS: якщо фасолини <=4 і немає активного SOS-квесту — показати алерт
+  React.useEffect(()=>{
+    const sp=g.spoons?.current??10;
+    const hasSosQ=sosQuestId&&g.dailyQuests.some(q=>q.id===sosQuestId&&!q.done);
+    if(sp<=4&&!hasSosQ&&!showSosAlert){
+      setShowSosAlert(true);
+    }
+    if(sp>4){
+      setShowSosAlert(false);
+      setSosQuestId(null);
+    }
+  },[g.spoons,sosQuestId,g.dailyQuests,showSosAlert]);
+
   // Завантажити зображення дракончика з IndexedDB при старті
   useEffect(()=>{
     idbGetAll().then(imgs=>setBankImages(imgs)).catch(()=>{});
@@ -912,6 +927,7 @@ function App(){
       if(q.weekQuestId&&q.projId){const pw=[...pr[q.projId].weeks];const wi=p.currentWeek-1;pw[wi]={...pw[wi],quests:pw[wi].quests.map(wq=>wq.id===q.weekQuestId?{...wq,done:true}:wq)};pr[q.projId]={...pr[q.projId],weeks:pw};}
       return{...p,dailyQuests:nd,projects:pr,mana:p.mana+q.mana};
     });
+    if(q.isSosQuest){setSosQuestId(null);setShowSosAlert(false);}
     if(q.todoistId) closeTodoistTask(q.todoistId);
     const notionToken_=g.notion?.token||notionToken;
     if(q.notionPageId&&notionToken_) markQuestDoneInNotion(q.notionPageId,notionToken_);
@@ -1740,6 +1756,48 @@ function App(){
         </div>
       </div>
     </div>}
+
+    {/* ── SOS: Енергія на нулі ── */}
+    {showSosAlert&&(()=>{
+      const hasSosQ=sosQuestId&&g.dailyQuests.some(q=>q.id===sosQuestId&&!q.done);
+      return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.92)",zIndex:10001,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+        <div style={{background:"#161921",border:"2px solid rgba(212,128,74,0.5)",borderRadius:16,padding:20,width:"100%",maxWidth:420}}>
+          <div style={{textAlign:"center",marginBottom:16}}>
+            <div style={{fontSize:36,marginBottom:8}}>🫘</div>
+            <div style={{fontSize:16,fontWeight:900,color:"#d4804a",marginBottom:4}}>Енергія на нулі!</div>
+            <div style={{fontSize:12,color:"#666",lineHeight:1.5}}>Фасолини критично низько ({g.spoons?.current??0} з {g.spoons?.max??10}).<br/>Обери що зробиш — і після виконання продовжиш роботу.</div>
+          </div>
+          {!hasSosQ
+            ?<>
+              <div style={{fontSize:10,color:"#888",fontFamily:"monospace",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:10}}>🆘 Оберіть мікро-дію:</div>
+              <div style={{display:"flex",flexDirection:"column",gap:6,maxHeight:320,overflowY:"auto"}}>
+                {MICRO.map(m=><button key={m.id} onClick={()=>{
+                  const id=Date.now();
+                  upd(p=>({...p,dailyQuests:[...p.dailyQuests,{id,name:m.emoji+" "+m.name,zone:"energy",projId:null,mana:m.mana||20,done:false,isSosQuest:true}]}));
+                  setSosQuestId(id);
+                  toast_("🆘 "+m.emoji+" додано як квест","#d4804a");
+                }} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",background:"rgba(255,255,255,0.03)",border:"1px solid #252a35",borderRadius:10,color:"#f0ece4",cursor:"pointer",textAlign:"left"}}>
+                  <span style={{fontSize:22,flexShrink:0}}>{m.emoji}</span>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:13,fontWeight:600}}>{m.name}</div>
+                    <div style={{fontSize:10,color:"#555",marginTop:2}}>+{m.mana||20} мани</div>
+                  </div>
+                </button>)}
+              </div>
+            </>
+            :<div style={{background:"rgba(212,128,74,0.08)",border:"1px solid rgba(212,128,74,0.3)",borderRadius:12,padding:"16px",textAlign:"center"}}>
+              <div style={{fontSize:24,marginBottom:8}}>⏳</div>
+              <div style={{fontSize:14,fontWeight:700,color:"#d4804a",marginBottom:6}}>Виконай квест щоб продовжити</div>
+              {g.dailyQuests.filter(q=>q.id===sosQuestId).map(q=><div key={q.id} style={{fontSize:13,color:"#f0ece4",background:"rgba(255,255,255,0.04)",borderRadius:8,padding:"10px 14px",marginBottom:10}}>{q.name}</div>)}
+              <div style={{fontSize:11,color:"#555"}}>Перейди до квестів, постав галочку — вікно закриється автоматично</div>
+              <button onClick={()=>setScreen("quests")} style={{marginTop:12,width:"100%",background:"rgba(212,128,74,0.15)",border:"1px solid rgba(212,128,74,0.4)",borderRadius:10,padding:"11px",color:"#d4804a",fontSize:13,fontWeight:700,cursor:"pointer"}}>
+                📋 Перейти до квестів →
+              </button>
+            </div>
+          }
+        </div>
+      </div>;
+    })()}
 
     {/* ── Прилипаючі кнопки збереження/відновлення ── */}
     <div style={{position:"fixed",top:10,right:10,zIndex:9998,display:"flex",gap:6}}>
@@ -2836,17 +2894,22 @@ function App(){
                 </div>
               }
             </div>
-            <button disabled={!timerDone}
-              onClick={()=>{
-                const bonus=calcStartBonus(new Date());
-                upd(p=>({...p,dayPhase:"work",lastSpoonsReminder:Date.now(),mana:bonus&&bonus.mana>0?p.mana+bonus.mana:p.mana}));
-                setTimerLeft(null);setTimerDone(false);
-                setSpoonsReminderType("ritual");setShowSpoonsReminder(true);
-                if(bonus){setStartBonus(bonus);setTimeout(()=>setStartBonus(null),2600);}
-              }}
-              style={{width:"100%",background:timerDone?"rgba(74,143,212,0.15)":"rgba(255,255,255,0.03)",border:"1px solid "+(timerDone?"rgba(74,143,212,0.5)":"#1e2028"),borderRadius:8,padding:"12px",color:timerDone?"#4a8fd4":"#333",fontSize:14,fontWeight:700,cursor:timerDone?"pointer":"not-allowed",transition:"all 0.3s"}}>
-              ⚡ Починаю роботу {timerDone?"→":"(зачекай таймер)"}
-            </button>
+            {(()=>{
+              const sosActive=showSosAlert||(sosQuestId&&g.dailyQuests.some(q=>q.id===sosQuestId&&!q.done));
+              const canStart=timerDone&&!sosActive;
+              return <button disabled={!canStart}
+                onClick={()=>{
+                  if(sosActive){setShowSosAlert(true);return;}
+                  const bonus=calcStartBonus(new Date());
+                  upd(p=>({...p,dayPhase:"work",lastSpoonsReminder:Date.now(),mana:bonus&&bonus.mana>0?p.mana+bonus.mana:p.mana}));
+                  setTimerLeft(null);setTimerDone(false);
+                  setSpoonsReminderType("ritual");setShowSpoonsReminder(true);
+                  if(bonus){setStartBonus(bonus);setTimeout(()=>setStartBonus(null),2600);}
+                }}
+                style={{width:"100%",background:canStart?"rgba(74,143,212,0.15)":sosActive?"rgba(212,128,74,0.1)":"rgba(255,255,255,0.03)",border:"1px solid "+(canStart?"rgba(74,143,212,0.5)":sosActive?"rgba(212,128,74,0.4)":"#1e2028"),borderRadius:8,padding:"12px",color:canStart?"#4a8fd4":sosActive?"#d4804a":"#333",fontSize:14,fontWeight:700,cursor:canStart?"pointer":"not-allowed",transition:"all 0.3s"}}>
+                {sosActive?"🫘 Спочатку поповни енергію":timerDone?"⚡ Починаю роботу →":"⚡ Починаю роботу (зачекай таймер)"}
+              </button>;
+            })()}
           </>}
           {!g.isDayOff&&ph==="work"&&<>
             <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
@@ -2857,13 +2920,19 @@ function App(){
               </div>
               <button onClick={()=>setScreen("quests")} style={{fontSize:11,color:"#4a8fd4",background:"rgba(74,143,212,0.1)",border:"1px solid rgba(74,143,212,0.3)",borderRadius:8,padding:"6px 12px",cursor:"pointer"}}>Квести →</button>
             </div>
-            {dc>0
-              ?<button onClick={()=>{setFlowSpoonsInput(null);setShowFlowCheck(true);}}
-                style={{width:"100%",background:"rgba(200,168,64,0.12)",border:"1px solid rgba(200,168,64,0.35)",borderRadius:8,padding:"12px",color:"#c8a840",fontSize:13,fontWeight:700,cursor:"pointer"}}>
-                🌊 Відкрити Потік →
-              </button>
-              :<div style={{fontSize:12,color:"#444",textAlign:"center",padding:"10px 0",lineHeight:1.5}}>Виконай хоча б один квест — відкриється Потік</div>
-            }
+            {(()=>{
+              const sosActive=showSosAlert||(sosQuestId&&g.dailyQuests.some(q=>q.id===sosQuestId&&!q.done));
+              if(sosActive) return <button onClick={()=>setShowSosAlert(true)}
+                style={{width:"100%",background:"rgba(212,128,74,0.1)",border:"1px solid rgba(212,128,74,0.4)",borderRadius:8,padding:"12px",color:"#d4804a",fontSize:13,fontWeight:700,cursor:"pointer"}}>
+                🫘 Спочатку поповни енергію
+              </button>;
+              return dc>0
+                ?<button onClick={()=>{setFlowSpoonsInput(null);setShowFlowCheck(true);}}
+                  style={{width:"100%",background:"rgba(200,168,64,0.12)",border:"1px solid rgba(200,168,64,0.35)",borderRadius:8,padding:"12px",color:"#c8a840",fontSize:13,fontWeight:700,cursor:"pointer"}}>
+                  🌊 Відкрити Потік →
+                </button>
+                :<div style={{fontSize:12,color:"#444",textAlign:"center",padding:"10px 0",lineHeight:1.5}}>Виконай хоча б один квест — відкриється Потік</div>;
+            })()}
           </>}
           {!g.isDayOff&&ph==="flow"&&<>
             <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
