@@ -283,7 +283,7 @@ const fresh=()=>({
   eveningActivity:"",     // що буду робити ввечері після роботи
   workFinished:false,     // чи зафіксовано завершення роботи сьогодні
   sprintConstants:[],
-  isDayOff:false,dayOffDates:[],
+  isDayOff:false,dayOffType:null,dayOffDates:[],
   breaks:[], // [{id, from, to, note}] — перерви між спринтами
   dragon:{scene:0,lastAdvanceDate:null,finished:false}, // дракончик
   dragonBank:{}, // {sceneN: [{id, name}]} — тільки метадані, base64 в IndexedDB
@@ -506,6 +506,7 @@ function App(){
   const [showSpoonsReminder,setShowSpoonsReminder]=useState(false);
   const [showSosAlert,setShowSosAlert]=useState(false);
   const [sosQuestId,setSosQuestId]=useState(null);
+  const [showDayOffModal,setShowDayOffModal]=useState(false);
   const [spoonsReminderType,setSpoonsReminderType]=useState("auto");
   const [startBonus,setStartBonus]=useState(null); // {level,mana} | null // для лічильника 9:00
   const [eveningBonus,setEveningBonus]=useState(null); // аналог для 18:30
@@ -554,6 +555,7 @@ function App(){
       if(!('tomorrowPlan' in s)){s.tomorrowPlan="";}
       if(!s.sprintConstants){s.sprintConstants=[];}
       if(!('isDayOff' in s)){s.isDayOff=false;}
+      if(!('dayOffType' in s)){s.dayOffType=null;}
       if(!s.dayOffDates){s.dayOffDates=[];}
       if(!s.breaks){s.breaks=[];}
       if(!('tomorrowDayType' in s)){s.tomorrowDayType=null;}
@@ -953,23 +955,29 @@ function App(){
       toast_(f.emoji+" +"+f.spoons+" 🫘 відновлено!","#4a8fd4");
     }
   };
-  const toggleDayOff=()=>{
+  const DAY_OFF_TYPES=[
+    {id:"rest",e:"🌿",l:"Вихідний",sub:"Відпочинок і відновлення",c:"#4ab870"},
+    {id:"family",e:"👨‍👩‍👧",l:"Сімейний день",sub:"Справи рідних, турбота",c:"#e0a050"},
+    {id:"force",e:"🚗",l:"Форс-мажор",sub:"Непередбачені обставини",c:"#e05555"},
+    {id:"busy",e:"🌀",l:"Зайнятий день",sub:"Чужі справи, поїздки",c:"#4a8fd4"},
+  ];
+  const toggleDayOff=(type)=>{
     const today=new Date().toISOString().slice(0,10);
     upd(p=>{
-      const isDayOff=!p.isDayOff;
+      // Якщо той самий тип — знімаємо, інакше — встановлюємо
+      const isDayOff=p.isDayOff&&p.dayOffType===type?false:true;
+      const dayOffType=isDayOff?type:null;
       const dayOffDates=isDayOff
         ?[...(p.dayOffDates||[]).filter(d=>d!==today),today]
         :(p.dayOffDates||[]).filter(d=>d!==today);
-      // Вихідний = дракончик просувається вперед (один раз на день)
       let dragon=p.dragon||{scene:0,lastAdvanceDate:null,finished:false};
       if(isDayOff&&dragon.lastAdvanceDate!==today){
         dragon={...dragon,scene:Math.min(21,dragon.scene+1),lastAdvanceDate:today,finished:dragon.scene+1===21};
         setTimeout(()=>{setDragonAnim("advance");setTimeout(()=>setDragonAnim(null),900);},100);
       } else if(!isDayOff&&dragon.lastAdvanceDate===today){
-        // Скасування вихідного — відкат на -1
         dragon={...dragon,scene:Math.max(0,dragon.scene-1),lastAdvanceDate:null,finished:false};
       }
-      return{...p,isDayOff,dayOffDates,dragon};
+      return{...p,isDayOff,dayOffType,dayOffDates,dragon};
     });
   };
   const addSprintConst=q=>{
@@ -1798,6 +1806,34 @@ function App(){
         </div>
       </div>;
     })()}
+
+    {/* ── Модалка типу вихідного ── */}
+    {showDayOffModal&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.88)",zIndex:10002,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+      <div style={{background:"#161921",border:"1px solid #252a35",borderRadius:16,padding:20,width:"100%",maxWidth:400}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+          <div style={{fontSize:13,fontWeight:700,color:"#f0ece4"}}>Який сьогодні день?</div>
+          <button onClick={()=>setShowDayOffModal(false)} style={{background:"transparent",border:"none",color:"#555",fontSize:18,cursor:"pointer"}}>×</button>
+        </div>
+        <div style={{display:"flex",flexDirection:"column",gap:8}}>
+          {DAY_OFF_TYPES.map(t=>{
+            const active=g.isDayOff&&g.dayOffType===t.id;
+            return <button key={t.id} onClick={()=>{toggleDayOff(t.id);setShowDayOffModal(false);}}
+              style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",background:active?t.c+"22":"rgba(255,255,255,0.03)",border:"2px solid "+(active?t.c:"#252a35"),borderRadius:12,color:active?t.c:"#888",cursor:"pointer",textAlign:"left",transition:"all 0.2s"}}>
+              <span style={{fontSize:26,flexShrink:0}}>{t.e}</span>
+              <div style={{flex:1}}>
+                <div style={{fontSize:13,fontWeight:700,color:active?t.c:"#f0ece4"}}>{t.l}</div>
+                <div style={{fontSize:11,color:"#555",marginTop:2}}>{t.sub}</div>
+              </div>
+              {active&&<span style={{fontSize:16,color:t.c}}>✓</span>}
+            </button>;
+          })}
+          {g.isDayOff&&<button onClick={()=>{toggleDayOff(g.dayOffType);setShowDayOffModal(false);}}
+            style={{padding:"10px",background:"transparent",border:"1px solid #2a1515",borderRadius:10,color:"#555",fontSize:12,cursor:"pointer",marginTop:4}}>
+            Скасувати — це робочий день
+          </button>}
+        </div>
+      </div>
+    </div>}
 
     {/* ── Прилипаючі кнопки збереження/відновлення ── */}
     <div style={{position:"fixed",top:10,right:10,zIndex:9998,display:"flex",gap:6}}>
@@ -2829,9 +2865,16 @@ function App(){
               {dayTab==="tomorrow"&&filled&&<span style={{fontSize:11,color:"#4ab870"}}>✓</span>}
             </div>
             <div style={{display:"flex",alignItems:"center",gap:6}}>
-              {dayTab==="day"&&<button onClick={e=>{e.stopPropagation();toggleDayOff();}} style={{fontSize:10,padding:"3px 10px",borderRadius:10,border:"1px solid "+(g.isDayOff?"rgba(184,122,219,0.5)":"#252a35"),background:g.isDayOff?"rgba(184,122,219,0.15)":"transparent",color:g.isDayOff?"#b87adb":"#444",cursor:"pointer",fontWeight:g.isDayOff?700:400}}>
-                {g.isDayOff?"🌿 Вихідний":"☀️ Вихідний?"}
-              </button>}
+              {dayTab==="day"&&(()=>{
+                const dt=DAY_OFF_TYPES.find(t=>t.id===g.dayOffType);
+                return <button onClick={e=>{e.stopPropagation();setShowDayOffModal(true);}}
+                  style={{fontSize:10,padding:"3px 10px",borderRadius:10,
+                    border:"1px solid "+(g.isDayOff?(dt?.c||"#4ab870")+"88":"#252a35"),
+                    background:g.isDayOff?(dt?.c||"#4ab870")+"22":"transparent",
+                    color:g.isDayOff?(dt?.c||"#4ab870"):"#444",cursor:"pointer",fontWeight:g.isDayOff?700:400}}>
+                  {g.isDayOff?(dt?.e||"🌿")+" "+(dt?.l||"Вихідний"):"☀️ Тип дня?"}
+                </button>;
+              })()}
               {dayTab==="break"&&<button onClick={e=>{e.stopPropagation();setBreakForm({from:"",to:"",note:""});setShowBreakModal(true);}}
                 style={{fontSize:11,color:"#9b59b6",background:"rgba(155,89,182,0.1)",border:"1px solid rgba(155,89,182,0.3)",borderRadius:8,padding:"4px 12px",cursor:"pointer"}}>+ Додати</button>}
             </div>
@@ -2854,16 +2897,20 @@ function App(){
 
           {/* ── ВКЛАДКА: ДЕНЬ ── */}
           {dayTab==="day"&&<div style={{padding:"14px 16px"}}>
-          {g.isDayOff&&<>
-            <div style={{background:"rgba(184,122,219,0.08)",border:"1px solid rgba(184,122,219,0.3)",borderRadius:10,padding:"16px",textAlign:"center"}}>
-              <div style={{fontSize:28,marginBottom:8}}>🌿</div>
-              <div style={{fontSize:14,fontWeight:700,color:"#b87adb",marginBottom:4}}>Вихідний день</div>
-              <div style={{fontSize:12,color:"#666",lineHeight:1.5}}>Ніяких обов'язкових квестів.<br/>Дрейфуй у вільному режимі.</div>
-            </div>
-            <button onClick={()=>setScreen("quests")} style={{marginTop:10,width:"100%",background:"rgba(184,122,219,0.1)",border:"1px solid rgba(184,122,219,0.25)",borderRadius:8,padding:"10px",color:"#b87adb",fontSize:13,cursor:"pointer"}}>
-              🎯 Квести за бажанням →
-            </button>
-          </>}
+          {g.isDayOff&&(()=>{
+            const dt=DAY_OFF_TYPES.find(t=>t.id===g.dayOffType)||DAY_OFF_TYPES[0];
+            return <>
+              <div style={{background:dt.c+"15",border:"1px solid "+dt.c+"44",borderRadius:10,padding:"16px",textAlign:"center"}}>
+                <div style={{fontSize:32,marginBottom:8}}>{dt.e}</div>
+                <div style={{fontSize:14,fontWeight:700,color:dt.c,marginBottom:4}}>{dt.l}</div>
+                <div style={{fontSize:12,color:"#666",lineHeight:1.5}}>{dt.sub}<br/>Ніяких обов'язкових квестів.</div>
+                <button onClick={()=>setShowDayOffModal(true)} style={{marginTop:10,fontSize:10,color:"#555",background:"transparent",border:"1px solid #252a35",borderRadius:8,padding:"4px 12px",cursor:"pointer"}}>змінити тип</button>
+              </div>
+              <button onClick={()=>setScreen("quests")} style={{marginTop:10,width:"100%",background:dt.c+"18",border:"1px solid "+dt.c+"33",borderRadius:8,padding:"10px",color:dt.c,fontSize:13,cursor:"pointer"}}>
+                🎯 Квести за бажанням →
+              </button>
+            </>;
+          })()}
           {!g.isDayOff&&ph==="ritual"&&<>
             {(g.tomorrowActivity||g.tomorrowPlan)
               ?<div style={{background:"rgba(200,168,64,0.08)",border:"1px solid rgba(200,168,64,0.25)",borderRadius:10,padding:"12px 14px",marginBottom:14}}>
