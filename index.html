@@ -931,13 +931,17 @@ function App(){
       const nd=p.dailyQuests.map(x=>x.id===id?{...x,done:true}:x);
       let pr={...p.projects};
       if(q.weekQuestId&&q.projId){const pw=[...pr[q.projId].weeks];const wi=p.currentWeek-1;pw[wi]={...pw[wi],quests:pw[wi].quests.map(wq=>wq.id===q.weekQuestId?{...wq,done:true}:wq)};pr[q.projId]={...pr[q.projId],weeks:pw};}
-      return{...p,dailyQuests:nd,projects:pr,mana:p.mana+q.mana};
+      // SOS-квест: +1 фасолина
+      const spoons=q.isSosQuest
+        ?{...p.spoons,current:Math.min(p.spoons?.max??10,(p.spoons?.current??10)+1)}
+        :p.spoons;
+      return{...p,dailyQuests:nd,projects:pr,mana:p.mana+q.mana,spoons};
     });
-    if(q.isSosQuest){setSosQuestId(null);setShowSosAlert(false);}
+    if(q.isSosQuest){setSosQuestId(null);setShowSosAlert(false);toast_("🫘 +1 фасолина · блокування знято","#4ab870");}
+    else{toast_("+"+q.mana+" мани ✨","#c8a840");}
     if(q.todoistId) closeTodoistTask(q.todoistId);
     const notionToken_=g.notion?.token||notionToken;
     if(q.notionPageId&&notionToken_) markQuestDoneInNotion(q.notionPageId,notionToken_);
-    toast_("+"+q.mana+" мани ✨","#c8a840");
   };
   const doMicro=m=>{if(g.microDone.includes(m.name))return;upd(p=>({...p,mana:p.mana+m.mana,microDone:[...p.microDone,m.name]}));toast_(m.emoji+" +"+m.mana+" мани!","#4ab870");};
   const doFlow=f=>{
