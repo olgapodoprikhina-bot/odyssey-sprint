@@ -283,7 +283,7 @@ const fresh=()=>({
   eveningActivity:"",     // що буду робити ввечері після роботи
   workFinished:false,     // чи зафіксовано завершення роботи сьогодні
   sprintConstants:[],
-  isDayOff:false,dayOffType:null,dayOffDates:[],
+  isDayOff:false,dayOffType:null,dayOffDates:[],dayOffTypes:{},
   breaks:[], // [{id, from, to, note}] — перерви між спринтами
   dragon:{scene:0,lastAdvanceDate:null,finished:false}, // дракончик
   dragonBank:{}, // {sceneN: [{id, name}]} — тільки метадані, base64 в IndexedDB
@@ -555,6 +555,7 @@ function App(){
       if(!('tomorrowPlan' in s)){s.tomorrowPlan="";}
       if(!s.sprintConstants){s.sprintConstants=[];}
       if(!('isDayOff' in s)){s.isDayOff=false;}
+      if(!s.dayOffTypes){s.dayOffTypes={};}
       if(!('dayOffType' in s)){s.dayOffType=null;}
       if(!s.dayOffDates){s.dayOffDates=[];}
       if(!s.breaks){s.breaks=[];}
@@ -966,11 +967,17 @@ function App(){
     }
   };
   const DAY_OFF_TYPES=[
-    {id:"rest",e:"🌿",l:"Вихідний",sub:"Відпочинок і відновлення",c:"#4ab870"},
-    {id:"family",e:"👨‍👩‍👧",l:"Сімейний день",sub:"Справи рідних, турбота",c:"#e0a050"},
-    {id:"force",e:"🚗",l:"Форс-мажор",sub:"Непередбачені обставини",c:"#e05555"},
-    {id:"busy",e:"🌀",l:"Зайнятий день",sub:"Чужі справи, поїздки",c:"#4a8fd4"},
+    {id:"rest",e:"🌿",l:"Вихідний",sub:"Відпочинок і відновлення",c:"#b87adb"},
+    {id:"family",e:"👨‍👩‍👧",l:"Сімейний день",sub:"Справи рідних, турбота",c:"#e08080"},
+    {id:"busy",e:"🌀",l:"Зайнятий день",sub:"Чужі справи, поїздки",c:"#e05050"},
+    {id:"force",e:"🚗",l:"Форс-мажор",sub:"Непередбачені обставини",c:"#cc1a1a"},
   ];
+  // Повертає колір для дати вихідного
+  const getDayOffColor=(date,dayOffTypes)=>{
+    const type=(dayOffTypes||{})[date]||"rest";
+    const dt=DAY_OFF_TYPES.find(t=>t.id===type)||DAY_OFF_TYPES[0];
+    return dt.c;
+  };
   const toggleDayOff=(type)=>{
     const today=new Date().toISOString().slice(0,10);
     upd(p=>{
@@ -986,7 +993,10 @@ function App(){
       } else if(!isDayOff&&dragon.lastAdvanceDate===today){
         dragon={...dragon,scene:Math.max(0,dragon.scene-1),lastAdvanceDate:null,finished:false};
       }
-      return{...p,isDayOff,dayOffType,dayOffDates,dragon};
+      const dayOffTypes={...(p.dayOffTypes||{})};
+      if(isDayOff){dayOffTypes[today]=dayOffType;}
+      else{delete dayOffTypes[today];}
+      return{...p,isDayOff,dayOffType,dayOffDates,dayOffTypes,dragon};
     });
   };
   const addSprintConst=q=>{
@@ -2555,14 +2565,15 @@ function App(){
                     const isToday=dayIdx===effectiveSprintDay;
                     const dayDate=g.sprintStartDate?new Date(new Date(g.sprintStartDate).getTime()+(dayIdx-1)*86400000).toISOString().slice(0,10):null;
                     const isDayOff=dayDate&&(g.dayOffDates||[]).includes(dayDate);
+                    const dayOffCol=isDayOff?getDayOffColor(dayDate,g.dayOffTypes):"#b87adb";
                     let bg,border;
-                    if(isDayOff){bg="#b87adb";border="transparent";}
+                    if(isDayOff){bg=dayOffCol;border="transparent";}
                     else if(isPastWeek){bg="#4ab870";border="transparent";}
                     else if(isPast){bg="#c8a840";border="transparent";}
                     else if(isToday){bg="#c8a840";border="#f0d070";}
                     else{bg="#1a1a1a";border="#252a35";}
-                    return <div key={i} style={{flex:1,height:isToday?22:16,borderRadius:4,background:bg,border:"2px solid "+(isToday&&!isDayOff?border:"transparent"),transition:"all 0.3s",boxShadow:isToday&&!isDayOff?"0 0 8px #c8a840aa":isDayOff?"0 0 6px #b87adb66":"none",position:"relative"}}>
-                      {isToday&&<div style={{position:"absolute",top:-14,left:"50%",transform:"translateX(-50%)",fontSize:9,color:isDayOff?"#b87adb":"#c8a840",fontWeight:700,whiteSpace:"nowrap"}}>{isDayOff?"🌿":"сьогодні"}</div>}
+                    return <div key={i} style={{flex:1,height:isToday?22:16,borderRadius:4,background:bg,border:"2px solid "+(isToday&&!isDayOff?border:"transparent"),transition:"all 0.3s",boxShadow:isToday&&!isDayOff?"0 0 8px #c8a840aa":isDayOff?"0 0 6px "+dayOffCol+"66":"none",position:"relative"}}>
+                      {isToday&&<div style={{position:"absolute",top:-14,left:"50%",transform:"translateX(-50%)",fontSize:9,color:isDayOff?dayOffCol:"#c8a840",fontWeight:700,whiteSpace:"nowrap"}}>{isDayOff?"🌿":"сьогодні"}</div>}
                     </div>;
                   })}
                 </div>
@@ -4254,8 +4265,9 @@ function App(){
             {days.map(d=>{
               const isToday=d===today;
               const isDayOff=(g.dayOffDates||[]).includes(d);
+              const hdCol=isDayOff?getDayOffColor(d,g.dayOffTypes):"#b87adb";
               const dd=new Date(d);
-              return <div key={d} style={{textAlign:"center",fontSize:9,color:isDayOff?"#b87adb":isToday?"#c8a840":"#444",fontFamily:"monospace",fontWeight:isToday||isDayOff?700:400}}>
+              return <div key={d} style={{textAlign:"center",fontSize:9,color:isDayOff?hdCol:isToday?"#c8a840":"#444",fontFamily:"monospace",fontWeight:isToday||isDayOff?700:400}}>
                 {["Нд","Пн","Вт","Ср","Чт","Пт","Сб"][dd.getDay()]}<br/>
                 <span style={{fontSize:8}}>{isDayOff?"🌿":dd.getDate()}</span>
               </div>;
@@ -4272,9 +4284,10 @@ function App(){
                 const isTodayDone=isToday&&g.dailyHabits.includes(h.id);
                 const isDone=done||isTodayDone;
                 const isDayOff=(g.dayOffDates||[]).includes(d);
+                const hbCol=isDayOff?getDayOffColor(d,g.dayOffTypes):"#b87adb";
                 return <div key={d} style={{height:20,borderRadius:4,
-                  background:isDayOff?"rgba(184,122,219,0.2)":isDone?h.color:"#111",
-                  border:"1px solid "+(isDayOff?"rgba(184,122,219,0.4)":isToday&&!isDone?"#333":"transparent"),
+                  background:isDayOff?hbCol+"33":isDone?h.color:"#111",
+                  border:"1px solid "+(isDayOff?hbCol+"66":isToday&&!isDone?"#333":"transparent"),
                   opacity:isToday?1:0.85,
                   boxShadow:isToday&&isDone?"0 0 6px "+h.color+"88":"none",
                   transition:"all 0.3s"}}/>;
