@@ -2314,15 +2314,51 @@ function App(){
     </div>}
 
     {/* ── Finish Sprint modal ── */}
-    {showFinishSprint&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.95)",zIndex:9998,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-      <div style={{background:"#161921",border:"1px solid #c8a840",borderRadius:16,padding:"28px 24px",maxWidth:360,width:"100%",textAlign:"center"}}>
-        <div style={{fontSize:48,marginBottom:12}}>🏆</div>
-        <div style={{fontFamily:"monospace",fontSize:9,letterSpacing:"0.2em",color:"#c8a840",textTransform:"uppercase",marginBottom:8}}>Спринт #{g.sprintNum||1} завершено!</div>
-        <div style={{fontSize:24,fontWeight:700,color:"#c8a840",marginBottom:4}}>{g.mana.toLocaleString()} мани</div>
-        <div style={{fontSize:12,color:"#666",marginBottom:20,lineHeight:1.6}}>Спринт збережено в Історії.<br/>Мана залишається — переходить у новий спринт.</div>
+    {showFinishSprint&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.95)",zIndex:9998,display:"flex",alignItems:"center",justifyContent:"center",padding:16,overflowY:"auto"}}>
+      <div style={{background:"#161921",border:"1px solid #c8a840",borderRadius:16,padding:"24px 20px",maxWidth:420,width:"100%"}}>
+        {/* Шапка */}
+        <div style={{textAlign:"center",marginBottom:20}}>
+          <div style={{fontSize:44,marginBottom:8}}>🏆</div>
+          <div style={{fontFamily:"monospace",fontSize:9,letterSpacing:"0.2em",color:"#c8a840",textTransform:"uppercase",marginBottom:6}}>Спринт #{g.sprintNum||1} завершено!</div>
+          <div style={{fontSize:22,fontWeight:700,color:"#c8a840",marginBottom:4}}>{g.mana.toLocaleString()} мани</div>
+          <div style={{fontSize:11,color:"#555",lineHeight:1.6}}>Спринт збережено в Історії. Мана переходить у новий спринт.</div>
+        </div>
+
+        {/* Рефлексії по тижнях */}
+        {(()=>{
+          const refs=g.weekReflections||[{},{},{}];
+          const scoreEmoji=["","😔","😐","🙂","😊","🌟"];
+          const scoreColors=["","#e05555","#e09955","#e0c855","#4ab870","#c8a840"];
+          const scoreLabels=["","Складно","Нормально","Непогано","Добре","Відмінно"];
+          const hasAnyRef=refs.some(r=>r&&(r.overall||r.mood||r.done||r.improve||r.selfScore>0));
+          if(!hasAnyRef) return null;
+          return <div style={{marginBottom:20}}>
+            <div style={{fontSize:10,fontFamily:"monospace",color:"#888",textTransform:"uppercase",letterSpacing:"0.15em",marginBottom:12,textAlign:"center"}}>✍️ Твої думки за спринт</div>
+            {refs.map((ref,i)=>{
+              if(!ref||(!ref.overall&&!ref.mood&&!ref.done&&!ref.improve&&!(ref.selfScore>0))) return null;
+              const wkColors=["#c8a840","#4a8fd4","#4ab870"];
+              const wkLabels=["Тиждень 1","Тиждень 2","Тиждень 3"];
+              return <div key={i} style={{background:"rgba(255,255,255,0.03)",border:"1px solid #1e2028",borderRadius:12,padding:"12px 14px",marginBottom:10}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                  <span style={{fontSize:11,fontWeight:700,color:wkColors[i],fontFamily:"monospace"}}>{wkLabels[i]}</span>
+                  {ref.selfScore>0&&<div style={{display:"flex",alignItems:"center",gap:4,background:scoreColors[ref.selfScore]+"22",border:"1px solid "+scoreColors[ref.selfScore]+"44",borderRadius:20,padding:"2px 8px"}}>
+                    <span style={{fontSize:12}}>{scoreEmoji[ref.selfScore]}</span>
+                    <span style={{fontSize:10,fontWeight:700,color:scoreColors[ref.selfScore]}}>{scoreLabels[ref.selfScore]}</span>
+                  </div>}
+                </div>
+                {[{k:"overall",l:"Загалом"},{k:"mood",l:"Відчуття"},{k:"done",l:"Що вдалось"},{k:"improve",l:"Що покращити"}].map(f=>ref[f.k]?<div key={f.k} style={{marginBottom:6}}>
+                  <div style={{fontSize:9,color:"#555",fontFamily:"monospace",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:2}}>{f.l}</div>
+                  <div style={{fontSize:12,color:"#c0bdb5",lineHeight:1.5}}>{ref[f.k]}</div>
+                </div>:null)}
+              </div>;
+            })}
+          </div>;
+        })()}
+
+        {/* Кнопки */}
         <div style={{display:"flex",gap:10}}>
-          <button onClick={()=>{setShowFinishSprint(false);setScreen("history");}} style={{flex:1,background:"transparent",border:"1px solid #252a35",borderRadius:8,padding:"11px",color:"#888",fontSize:13}}>📜 Переглянути</button>
-          <button onClick={startNewSprint} style={{flex:2,background:"#c8a840",border:"none",borderRadius:8,padding:"11px",color:"#0d0f14",fontSize:14,fontWeight:700}}>🌱 Новий спринт!</button>
+          <button onClick={()=>{setShowFinishSprint(false);setScreen("history");}} style={{flex:1,background:"transparent",border:"1px solid #252a35",borderRadius:8,padding:"11px",color:"#888",fontSize:13,cursor:"pointer"}}>📜 Переглянути</button>
+          <button onClick={startNewSprint} style={{flex:2,background:"#c8a840",border:"none",borderRadius:8,padding:"11px",color:"#0d0f14",fontSize:14,fontWeight:700,cursor:"pointer"}}>🌱 Новий спринт!</button>
         </div>
       </div>
     </div>}
