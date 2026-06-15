@@ -550,8 +550,6 @@ function App(){
       if(!s.carryoverPool){s.carryoverPool=[];}
       if(!s.flowDone){s.flowDone=[];}
       if(!s.dayPhase||s.dayPhase==="buffer"){s.dayPhase="ritual";}
-      // Якщо dayPhase=flow але це новий день — скидаємо до ritual
-      if(s.dayPhase==="flow"&&s.lastActiveDate!==new Date().toISOString().slice(0,10)){s.dayPhase="ritual";}
       if(!s.ritual){s.ritual={body:false,phone:false};}
       if(!s.workType===undefined){s.workType=null;}
       if(!('tomorrowPlan' in s)){s.tomorrowPlan="";}
@@ -1569,7 +1567,7 @@ function App(){
         sprintNum:(prev.sprintNum||1)+1,
         projects:newProjects,
         carryoverPool:[], // очищаємо після переносу
-        dailyQuests:[],microDone:[],flowDone:[],dayPhase:"ritual",
+        dailyQuests:[],microDone:[],flowDone:[],dayPhase:"flow",
         ritual:{body:false,phone:false},
         energy:null,mode:null,bbValue:"",bbGarmin:"",spoonsValue:"",
         dragon:{scene:0,lastAdvanceDate:null,finished:false},
@@ -1600,6 +1598,13 @@ function App(){
     reader.onload=ev=>{
       try{
         const data=JSON.parse(ev.target.result);
+        const today=new Date().toISOString().slice(0,10);
+        // Якщо дані з іншого дня або dayPhase=flow — скидаємо до ritual
+        if(data.lastActiveDate!==today||data.dayPhase==="flow"){
+          data.dayPhase="ritual";
+          data.timerLeft=null;
+          data.timerDone=false;
+        }
         setG(data); save(data);
         if(data.bbValue){setBbInput(data.bbValue);setBbPreview(bbToCard(data.bbValue));}
         toast_("✅ Дані відновлено!","#4ab870");
