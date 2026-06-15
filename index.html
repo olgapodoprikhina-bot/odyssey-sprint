@@ -274,6 +274,7 @@ const fresh=()=>({
   mana:0,energy:null,mode:null,bbValue:"",bbGarmin:"",spoonsValue:"",
   ritual:{body:false,phone:false},
   sprintStarted:false,currentWeek:1,sprintNum:1,sprintStartDate:null,weekStartDate:null,
+  sprintIntent:"",weekIntents:["","",""],
   projects:{A:freshProject("A"),B:freshProject("B"),C:freshProject("C"),D:freshProject("D")},
   dailyQuests:[],microDone:[],flowDone:[],purchases:[],dayPhase:"ritual",workType:null,questsCancelledToday:0,
   tomorrowPlan:"",
@@ -556,6 +557,8 @@ function App(){
       if(!s.sprintConstants){s.sprintConstants=[];}
       if(!('isDayOff' in s)){s.isDayOff=false;}
       if(!s.dayOffTypes){s.dayOffTypes={};}
+      if(!('sprintIntent' in s)){s.sprintIntent='';}
+      if(!s.weekIntents){s.weekIntents=['','',''];}
       if(!('dayOffType' in s)){s.dayOffType=null;}
       if(!s.dayOffDates){s.dayOffDates=[];}
       if(!s.breaks){s.breaks=[];}
@@ -2315,7 +2318,7 @@ function App(){
 
     {/* ── Finish Sprint modal ── */}
     {showFinishSprint&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.95)",zIndex:9998,display:"flex",alignItems:"center",justifyContent:"center",padding:16,overflowY:"auto"}}>
-      <div style={{background:"#161921",border:"1px solid #c8a840",borderRadius:16,padding:"24px 20px",maxWidth:420,width:"100%"}}>
+      <div style={{background:"#161921",border:"1px solid #c8a840",borderRadius:16,padding:"24px 20px",maxWidth:420,width:"100%",maxHeight:"90vh",overflowY:"auto"}}>
         {/* Шапка */}
         <div style={{textAlign:"center",marginBottom:20}}>
           <div style={{fontSize:44,marginBottom:8}}>🏆</div>
@@ -2323,6 +2326,37 @@ function App(){
           <div style={{fontSize:22,fontWeight:700,color:"#c8a840",marginBottom:4}}>{g.mana.toLocaleString()} мани</div>
           <div style={{fontSize:11,color:"#555",lineHeight:1.6}}>Спринт збережено в Історії. Мана переходить у новий спринт.</div>
         </div>
+
+        {/* Намір vs Реальність */}
+        {(g.sprintIntent||(g.weekIntents||[]).some(w=>w))&&(()=>{
+          const refs=g.weekReflections||[{},{},{}];
+          const wkColors=["#c8a840","#4a8fd4","#4ab870"];
+          return <div style={{marginBottom:16}}>
+            <div style={{fontSize:10,fontFamily:"monospace",color:"#c8a840",textTransform:"uppercase",letterSpacing:"0.15em",marginBottom:10,textAlign:"center"}}>🎯 Намір vs Реальність</div>
+            {g.sprintIntent&&<div style={{background:"rgba(200,168,64,0.06)",border:"1px solid rgba(200,168,64,0.2)",borderRadius:10,padding:"10px 12px",marginBottom:8}}>
+              <div style={{fontSize:9,color:"#888",fontFamily:"monospace",textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:4}}>Намір спринту</div>
+              <div style={{fontSize:12,color:"#c8a840",lineHeight:1.5,fontStyle:"italic"}}>"{g.sprintIntent}"</div>
+            </div>}
+            {(g.weekIntents||["","",""]).map((intent,i)=>{
+              const ref=refs[i]||{};
+              const hasIntent=intent&&intent.trim();
+              const hasRef=ref.overall||ref.done;
+              if(!hasIntent&&!hasRef) return null;
+              return <div key={i} style={{background:"rgba(255,255,255,0.02)",border:"1px solid #1e2028",borderRadius:10,padding:"10px 12px",marginBottom:6}}>
+                <div style={{fontSize:10,fontWeight:700,color:wkColors[i],fontFamily:"monospace",marginBottom:6}}>Тиждень {i+1}</div>
+                {hasIntent&&<div style={{marginBottom:hasRef?8:0}}>
+                  <div style={{fontSize:9,color:"#555",fontFamily:"monospace",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:2}}>Планувала</div>
+                  <div style={{fontSize:12,color:"#888",lineHeight:1.4,fontStyle:"italic"}}>"{intent}"</div>
+                </div>}
+                {hasRef&&<div>
+                  <div style={{fontSize:9,color:wkColors[i]+"99",fontFamily:"monospace",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:2}}>Як вийшло</div>
+                  {ref.overall&&<div style={{fontSize:12,color:"#c0bdb5",lineHeight:1.4,marginBottom:3}}>{ref.overall}</div>}
+                  {ref.done&&<div style={{fontSize:11,color:"#888",lineHeight:1.4}}>✓ {ref.done}</div>}
+                </div>}
+              </div>;
+            })}
+          </div>;
+        })()}
 
         {/* Рефлексії по тижнях */}
         {(()=>{
@@ -2332,15 +2366,14 @@ function App(){
           const scoreLabels=["","Складно","Нормально","Непогано","Добре","Відмінно"];
           const hasAnyRef=refs.some(r=>r&&(r.overall||r.mood||r.done||r.improve||r.selfScore>0));
           if(!hasAnyRef) return null;
-          return <div style={{marginBottom:20}}>
-            <div style={{fontSize:10,fontFamily:"monospace",color:"#888",textTransform:"uppercase",letterSpacing:"0.15em",marginBottom:12,textAlign:"center"}}>✍️ Твої думки за спринт</div>
+          return <div style={{marginBottom:16}}>
+            <div style={{fontSize:10,fontFamily:"monospace",color:"#888",textTransform:"uppercase",letterSpacing:"0.15em",marginBottom:10,textAlign:"center"}}>✍️ Твої думки за спринт</div>
             {refs.map((ref,i)=>{
               if(!ref||(!ref.overall&&!ref.mood&&!ref.done&&!ref.improve&&!(ref.selfScore>0))) return null;
               const wkColors=["#c8a840","#4a8fd4","#4ab870"];
-              const wkLabels=["Тиждень 1","Тиждень 2","Тиждень 3"];
-              return <div key={i} style={{background:"rgba(255,255,255,0.03)",border:"1px solid #1e2028",borderRadius:12,padding:"12px 14px",marginBottom:10}}>
+              return <div key={i} style={{background:"rgba(255,255,255,0.03)",border:"1px solid #1e2028",borderRadius:12,padding:"12px 14px",marginBottom:8}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-                  <span style={{fontSize:11,fontWeight:700,color:wkColors[i],fontFamily:"monospace"}}>{wkLabels[i]}</span>
+                  <span style={{fontSize:11,fontWeight:700,color:wkColors[i],fontFamily:"monospace"}}>Тиждень {i+1}</span>
                   {ref.selfScore>0&&<div style={{display:"flex",alignItems:"center",gap:4,background:scoreColors[ref.selfScore]+"22",border:"1px solid "+scoreColors[ref.selfScore]+"44",borderRadius:20,padding:"2px 8px"}}>
                     <span style={{fontSize:12}}>{scoreEmoji[ref.selfScore]}</span>
                     <span style={{fontSize:10,fontWeight:700,color:scoreColors[ref.selfScore]}}>{scoreLabels[ref.selfScore]}</span>
@@ -3407,6 +3440,25 @@ function App(){
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
             <div style={S.ttl}>🎯 Спринт #{g.sprintNum||1}{g.sprintStartDate&&<span style={{fontSize:12,color:"#a08830",fontWeight:600,marginLeft:8}}>{sprintRange(g.sprintStartDate)}</span>}</div>
             <div style={{fontSize:11,color:"#888",fontFamily:"monospace"}}>Тиждень {cw}/3{g.sprintStartDate&&<span style={{marginLeft:6,color:"#a08830",fontWeight:600}}>{weekRange(g.sprintStartDate,cw)}</span>}</div>
+          </div>
+
+          {/* ── Наміри спринту ── */}
+          <div style={{background:"rgba(200,168,64,0.05)",border:"1px solid rgba(200,168,64,0.2)",borderRadius:12,padding:"14px"}}>
+            <div style={{fontSize:9,fontFamily:"monospace",color:"#c8a840",letterSpacing:"0.15em",textTransform:"uppercase",marginBottom:10}}>🌟 Мій намір на цей спринт</div>
+            <textarea value={g.sprintIntent||""} onChange={e=>upd(p=>({...p,sprintIntent:e.target.value}))}
+              placeholder="Чого я очікую від цього спринту? Що для мене важливо?"
+              rows={2}
+              style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid #252a35",borderRadius:8,padding:"9px 11px",color:"#f0ece4",fontSize:12,resize:"none",lineHeight:1.5,fontFamily:"system-ui,sans-serif",outline:"none",boxSizing:"border-box",marginBottom:10}}/>
+            <div style={{fontSize:9,fontFamily:"monospace",color:"#888",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:8}}>Що буде готово наприкінці кожного тижня</div>
+            {[0,1,2].map(i=><div key={i} style={{display:"flex",alignItems:"flex-start",gap:8,marginBottom:6}}>
+              <div style={{fontSize:10,fontFamily:"monospace",color:["#c8a840","#4a8fd4","#4ab870"][i],fontWeight:700,paddingTop:9,minWidth:16}}>W{i+1}</div>
+              <textarea value={(g.weekIntents||["","",""])[i]||""} onChange={e=>{
+                const wi=[...(g.weekIntents||["","",""])];
+                wi[i]=e.target.value;
+                upd(p=>({...p,weekIntents:wi}));
+              }} placeholder={"Тиждень "+(i+1)+" — що планую завершити..."} rows={1}
+                style={{flex:1,background:"rgba(255,255,255,0.03)",border:"1px solid #252a35",borderRadius:8,padding:"8px 10px",color:"#f0ece4",fontSize:12,resize:"none",lineHeight:1.5,fontFamily:"system-ui,sans-serif",outline:"none",boxSizing:"border-box"}}/>
+            </div>)}
           </div>
           <div style={{display:"flex",gap:6}}>
             {PROJECTS.map(p=><button key={p.id} onClick={()=>{setSprintTab(p.id);setExpandW(null);}}
