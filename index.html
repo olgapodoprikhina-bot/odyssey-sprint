@@ -929,6 +929,17 @@ function App(){
     upd(p=>({...p,dailyQuests:[...p.dailyQuests,{id:Date.now(),name,zone,projId,mana,done:false}]}));
     setQName("");setPendingQ(null);toast_("Квест +"+mana+" мани","#4a8fd4");
   };
+  const updateQuestDueDate=(projId,wNum,qId,date)=>{
+    upd(p=>{
+      const pr={...p.projects};
+      const pw=[...pr[projId].weeks];
+      const wi=pw.findIndex(w=>w.num===wNum);
+      if(wi<0)return p;
+      pw[wi]={...pw[wi],quests:pw[wi].quests.map(q=>q.id===qId?{...q,dueDate:date}:q)};
+      pr[projId]={...pr[projId],weeks:pw};
+      return{...p,projects:pr};
+    });
+  };
   const addWQToday=(wq,pid)=>{
     if(!g.energy||!g.mode){toast_("Спочатку 🌅 Ранок","#e05555");return;}
     if(g.dailyQuests.find(d=>d.weekQuestId===wq.id)){toast_("Вже є сьогодні","#555");return;}
@@ -1683,11 +1694,12 @@ function App(){
 
   const ProjBadge=({pid,size=11})=>{const p=PROJECTS.find(x=>x.id===pid);return <span style={{background:p.bg,border:"1px solid "+p.border,borderRadius:10,padding:"1px 7px",fontSize:size,color:p.color,fontWeight:700,flexShrink:0}}>{p.short}</span>;};
 
-  const QItem=({q,onDone,onDel,onAdd,showProj,onNotion,onSprintConst})=>{
+  const QItem=({q,onDone,onDel,onAdd,showProj,onNotion,onSprintConst,onDueChange})=>{
     const zone=ZONES.find(z=>z.id===q.zone);
     const nState=notionQSending[q.id];
     const [showNPicker,setShowNPicker]=React.useState(false);
     const [nSearch,setNSearch]=React.useState("");
+    const [showDatePicker,setShowDatePicker]=React.useState(false);
     // Список проектів Notion з налаштувань
     const notionProjs=(g.notion?.projList||[]).filter(x=>x.id&&x.name);
     const filteredProjs=nSearch.trim()?notionProjs.filter(x=>x.name.toLowerCase().includes(nSearch.toLowerCase())):notionProjs;
@@ -1707,14 +1719,33 @@ function App(){
         {!q.notionPageId&&q.todoistLabels?.length>0&&<div style={{display:"flex",gap:4,flexWrap:"wrap",marginTop:2,marginBottom:1}}>
           {q.todoistLabels.map((lb,i)=><span key={i} style={{fontSize:9,background:"rgba(232,68,74,0.1)",border:"1px solid rgba(232,68,74,0.25)",borderRadius:8,padding:"1px 6px",color:"#e8444a"}}>🏷 {lb}</span>)}
         </div>}
-        {q.dueDate&&(()=>{
-          const today=new Date().toISOString().slice(0,10);
-          const due=q.dueDate;
-          const diff=Math.round((new Date(due)-new Date(today))/(1000*60*60*24));
-          const color=diff<0?"#e05555":diff===0?"#e8a44a":diff<=2?"#c8a840":"#555";
-          const label=diff<0?"⚠️ прострочено "+Math.abs(diff)+" дн.":diff===0?"📅 сьогодні":diff===1?"📅 завтра":"📅 рек. "+due.split("-").reverse().join(".");
-          return <div style={{fontSize:10,color,marginTop:2,marginBottom:1}}>{label}</div>;
-        })()}
+        {/* Дата: показуємо і дозволяємо редагувати */}
+        <div style={{display:"flex",alignItems:"center",gap:6,marginTop:2,marginBottom:1}}>
+          {q.dueDate&&(()=>{
+            const today=new Date().toISOString().slice(0,10);
+            const due=q.dueDate;
+            const diff=Math.round((new Date(due)-new Date(today))/(1000*60*60*24));
+            const color=diff<0?"#e05555":diff===0?"#e8a44a":diff<=2?"#c8a840":"#555";
+            const label=diff<0?"⚠️ прострочено "+Math.abs(diff)+" дн.":diff===0?"📅 сьогодні":diff===1?"📅 завтра":"📅 "+due.split("-").reverse().join(".");
+            return <div style={{fontSize:10,color}}>{label}</div>;
+          })()}
+          {onDueChange&&!q.done&&<div style={{position:"relative"}}>
+            <button onClick={()=>setShowDatePicker(p=>!p)}
+              style={{fontSize:9,color:"#444",background:"transparent",border:"1px solid #252a35",borderRadius:6,padding:"1px 6px",cursor:"pointer"}}>
+              {q.dueDate?"✏️":"📅 дата"}
+            </button>
+            {showDatePicker&&<div style={{position:"absolute",left:0,top:"calc(100% + 4px)",background:"#161920",border:"1px solid #252a35",borderRadius:10,padding:"8px",zIndex:999,boxShadow:"0 4px 20px #0008",minWidth:170}}>
+              <div style={{fontSize:9,color:"#555",fontFamily:"monospace",marginBottom:6}}>Дата виконання</div>
+              <input type="date" defaultValue={q.dueDate||""} min={new Date().toISOString().slice(0,10)}
+                onChange={e=>{onDueChange(e.target.value||null);setShowDatePicker(false);}}
+                style={{background:"#0d0f14",border:"1px solid #252a35",borderRadius:6,padding:"5px 8px",color:"#f0ece4",fontSize:12,width:"100%",boxSizing:"border-box"}}/>
+              {q.dueDate&&<button onClick={()=>{onDueChange(null);setShowDatePicker(false);}}
+                style={{marginTop:5,width:"100%",background:"transparent",border:"1px solid #2a1515",borderRadius:6,padding:"4px",color:"#555",fontSize:10,cursor:"pointer"}}>
+                × Прибрати дату
+              </button>}
+            </div>}
+          </div>}
+        </div>
         <div style={{fontSize:11,color:zone?.color}}>{zone?.emoji} {zone?.label}{q.mana?" · "+q.mana+" мани":""}</div>
       </div>
       {onNotion&&!q.notionPageId&&!q.done&&<div style={{position:"relative",flexShrink:0}}>
@@ -3588,6 +3619,7 @@ function App(){
                         return w.quests.map(q=><QItem key={q.id} q={q}
                           onAdd={isCur&&!isLock&&!isDone?()=>addWQToday(q,p.id):null}
                           onDel={!isDone&&!isLock?()=>removeQ(p.id,w.num,q.id):null}
+                          onDueChange={!isDone&&!isLock?(date)=>updateQuestDueDate(p.id,w.num,q.id,date):null}
                           onNotion={g.notion?.token&&!q.notionPageId?(nProjId,nProjName)=>sendQuestToNotion(q,p.id,nProjId,nProjName):null}/>);
                       }
                       const groups={};
@@ -3602,6 +3634,7 @@ function App(){
                         {qs.map(q=><QItem key={q.id} q={q}
                           onAdd={isCur&&!isLock&&!isDone?()=>addWQToday(q,p.id):null}
                           onDel={!isDone&&!isLock?()=>removeQ(p.id,w.num,q.id):null}
+                          onDueChange={!isDone&&!isLock?(date)=>updateQuestDueDate(p.id,w.num,q.id,date):null}
                           onNotion={g.notion?.token&&!q.notionPageId?(nProjId,nProjName)=>sendQuestToNotion(q,p.id,nProjId,nProjName):null}/>)}
                       </div>);
                     })()}
