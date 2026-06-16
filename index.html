@@ -1725,7 +1725,7 @@ function App(){
             const due=q.dueDate;
             const diff=Math.round((new Date(due)-new Date(today))/(1000*60*60*24));
             const color=diff<0?"#e05555":diff===0?"#e8a44a":diff<=2?"#c8a840":"#555";
-            const label=diff<0?"⚠️ прострочено "+Math.abs(diff)+" дн.":diff===0?"📅 сьогодні":diff===1?"📅 завтра":"📅 "+due.split("-").reverse().join(".");
+            const label=diff<0?"⚠️ прострочено "+Math.abs(diff)+" дн.":diff===0?"📅 сьогодні":diff===1?"📅 завтра":"📅 "+due.slice(8,10)+"."+due.slice(5,7)+"."+due.slice(0,4);
             return <div style={{fontSize:10,color}}>{label}</div>;
           })()}
           {onDueChange&&!q.done&&<div style={{position:"relative"}}>
@@ -4022,6 +4022,7 @@ function App(){
               onDone={()=>doneDaily(q.id)}
               onDel={()=>upd(p=>({...p,dailyQuests:p.dailyQuests.filter(x=>x.id!==q.id),questsCancelledToday:(p.questsCancelledToday||0)+1}))}
               onSprintConst={!q.done?()=>addSprintConst(q):null}
+              onDueChange={!q.done?(date)=>upd(p=>({...p,dailyQuests:p.dailyQuests.map(x=>x.id===q.id?{...x,dueDate:date}:x)})):null}
               onNotion={g.notion?.token&&!q.notionPageId?(nProjId,nProjName)=>sendQuestToNotion(q,q.projId,nProjId,nProjName):null}/>);
           }
           // Групування
@@ -4041,6 +4042,7 @@ function App(){
               onDone={()=>doneDaily(q.id)}
               onDel={()=>upd(p=>({...p,dailyQuests:p.dailyQuests.filter(x=>x.id!==q.id),questsCancelledToday:(p.questsCancelledToday||0)+1}))}
               onSprintConst={!q.done?()=>addSprintConst(q):null}
+              onDueChange={!q.done?(date)=>upd(p=>({...p,dailyQuests:p.dailyQuests.map(x=>x.id===q.id?{...x,dueDate:date}:x)})):null}
               onNotion={g.notion?.token&&!q.notionPageId?(nProjId,nProjName)=>sendQuestToNotion(q,q.projId,nProjId,nProjName):null}/>)}
           </div>);
         })()}
