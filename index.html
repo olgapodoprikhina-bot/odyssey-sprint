@@ -1698,7 +1698,6 @@ function App(){
     const nState=notionQSending[q.id];
     const [showNPicker,setShowNPicker]=React.useState(false);
     const [nSearch,setNSearch]=React.useState("");
-    const [showDatePicker,setShowDatePicker]=React.useState(false);
     // Список проектів Notion з налаштувань
     const notionProjs=(g.notion?.projList||[]).filter(x=>x.id&&x.name);
     const filteredProjs=nSearch.trim()?notionProjs.filter(x=>x.name.toLowerCase().includes(nSearch.toLowerCase())):notionProjs;
@@ -1722,28 +1721,25 @@ function App(){
         <div style={{display:"flex",alignItems:"center",gap:6,marginTop:2,marginBottom:1}}>
           {q.dueDate&&(()=>{
             const today=new Date().toISOString().slice(0,10);
-            const due=q.dueDate;
+            const due=(q.dueDate||"").slice(0,10);
+            if(!due||due.length<10)return null;
             const diff=Math.round((new Date(due)-new Date(today))/(1000*60*60*24));
+            if(isNaN(diff))return null;
             const color=diff<0?"#e05555":diff===0?"#e8a44a":diff<=2?"#c8a840":"#555";
             const label=diff<0?"⚠️ прострочено "+Math.abs(diff)+" дн.":diff===0?"📅 сьогодні":diff===1?"📅 завтра":"📅 "+due.slice(8,10)+"."+due.slice(5,7)+"."+due.slice(0,4);
             return <div style={{fontSize:10,color}}>{label}</div>;
           })()}
-          {onDueChange&&!q.done&&<div style={{position:"relative"}}>
-            <button onClick={()=>setShowDatePicker(p=>!p)}
-              style={{fontSize:9,color:"#444",background:"transparent",border:"1px solid #252a35",borderRadius:6,padding:"1px 6px",cursor:"pointer"}}>
-              {q.dueDate?"✏️":"📅 дата"}
-            </button>
-            {showDatePicker&&<div style={{position:"absolute",left:0,top:"calc(100% + 4px)",background:"#161920",border:"1px solid #252a35",borderRadius:10,padding:"8px",zIndex:999,boxShadow:"0 4px 20px #0008",minWidth:170}}>
-              <div style={{fontSize:9,color:"#555",fontFamily:"monospace",marginBottom:6}}>Дата виконання</div>
-              <input type="date" defaultValue={q.dueDate||""} min={new Date().toISOString().slice(0,10)}
-                onChange={e=>{onDueChange(e.target.value||null);setShowDatePicker(false);}}
-                style={{background:"#0d0f14",border:"1px solid #252a35",borderRadius:6,padding:"5px 8px",color:"#f0ece4",fontSize:12,width:"100%",boxSizing:"border-box"}}/>
-              {q.dueDate&&<button onClick={()=>{onDueChange(null);setShowDatePicker(false);}}
-                style={{marginTop:5,width:"100%",background:"transparent",border:"1px solid #2a1515",borderRadius:6,padding:"4px",color:"#555",fontSize:10,cursor:"pointer"}}>
-                × Прибрати дату
-              </button>}
-            </div>}
-          </div>}
+          {onDueChange&&!q.done&&<label style={{position:"relative",display:"inline-block",cursor:"pointer"}}>
+            <span style={{fontSize:9,color:"#4a8fd4",background:"rgba(74,143,212,0.1)",border:"1px solid rgba(74,143,212,0.3)",borderRadius:6,padding:"2px 7px",pointerEvents:"none",userSelect:"none"}}>
+              {q.dueDate?"✏️ дата":"📅 дата"}
+            </span>
+            <input type="date"
+              value={(q.dueDate||"").slice(0,10)}
+              onChange={e=>onDueChange(e.target.value||null)}
+              style={{position:"absolute",top:0,left:0,width:"100%",height:"100%",opacity:0,cursor:"pointer"}}/>
+          </label>}
+          {onDueChange&&q.dueDate&&!q.done&&<button onClick={()=>onDueChange(null)}
+            style={{fontSize:9,color:"#444",background:"transparent",border:"none",cursor:"pointer",padding:"1px 3px",lineHeight:1}}>×</button>}
         </div>
         <div style={{fontSize:11,color:zone?.color}}>{zone?.emoji} {zone?.label}{q.mana?" · "+q.mana+" мани":""}</div>
       </div>
@@ -4022,7 +4018,6 @@ function App(){
               onDone={()=>doneDaily(q.id)}
               onDel={()=>upd(p=>({...p,dailyQuests:p.dailyQuests.filter(x=>x.id!==q.id),questsCancelledToday:(p.questsCancelledToday||0)+1}))}
               onSprintConst={!q.done?()=>addSprintConst(q):null}
-              onDueChange={!q.done?(date)=>upd(p=>({...p,dailyQuests:p.dailyQuests.map(x=>x.id===q.id?{...x,dueDate:date}:x)})):null}
               onNotion={g.notion?.token&&!q.notionPageId?(nProjId,nProjName)=>sendQuestToNotion(q,q.projId,nProjId,nProjName):null}/>);
           }
           // Групування
@@ -4042,7 +4037,6 @@ function App(){
               onDone={()=>doneDaily(q.id)}
               onDel={()=>upd(p=>({...p,dailyQuests:p.dailyQuests.filter(x=>x.id!==q.id),questsCancelledToday:(p.questsCancelledToday||0)+1}))}
               onSprintConst={!q.done?()=>addSprintConst(q):null}
-              onDueChange={!q.done?(date)=>upd(p=>({...p,dailyQuests:p.dailyQuests.map(x=>x.id===q.id?{...x,dueDate:date}:x)})):null}
               onNotion={g.notion?.token&&!q.notionPageId?(nProjId,nProjName)=>sendQuestToNotion(q,q.projId,nProjId,nProjName):null}/>)}
           </div>);
         })()}
