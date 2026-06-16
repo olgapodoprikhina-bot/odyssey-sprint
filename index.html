@@ -507,6 +507,8 @@ function App(){
   const [showSosAlert,setShowSosAlert]=useState(false);
   const [showDayOffModal,setShowDayOffModal]=useState(false);
   const [sosQuestId,setSosQuestId]=useState(null);
+  const [showDueTodayAlert,setShowDueTodayAlert]=useState(false);
+  const [showTomorrowTasksAlert,setShowTomorrowTasksAlert]=useState(false);
   const [showTomorrowTasksAlert,setShowTomorrowTasksAlert]=useState(false);
   const [spoonsReminderType,setSpoonsReminderType]=useState("auto");
   const [startBonus,setStartBonus]=useState(null); // {level,mana} | null // для лічильника 9:00
@@ -828,6 +830,14 @@ function App(){
       spoons:{...p.spoons,current:spoonsNum},
     }));
     toast_(c.emoji+" "+c.label+" x"+c.mult+" · 🫘 "+spoonsNum,c.color);
+    // Показати задачі з датою на сьогодні
+    const today=new Date().toISOString().slice(0,10);
+    const hasDueToday=PROJECTS.some(p=>
+      g.projects[p.id]?.weeks.some(w=>
+        w.quests.some(q=>!q.done&&q.dueDate===today)
+      )
+    );
+    if(hasDueToday) setTimeout(()=>setShowDueTodayAlert(true),800);
   };
 
   // Розрахунок бонусу за старт о 9:00
@@ -1176,7 +1186,7 @@ function App(){
       const newQuests=tasks
         .filter(t=>!t.parent_id && !t.checked)
         .filter(t=>!t.content.trimStart().startsWith("*"))
-        .filter(t=>!existingTdIds.has(t.id))
+        .filter(t=>!existingTdIds.has(t.id) && !existingNames.has(t.content.trim().toLowerCase()))
         .map(t=>({
           id:Date.now()+Math.random(),
           name:t.content,
@@ -1250,7 +1260,7 @@ function App(){
         const newQ=tasks
           .filter(t=>!t.parent_id&&!t.checked)
           .filter(t=>!t.content.trimStart().startsWith("*"))
-          .filter(t=>!existingTdIds.has(t.id))
+          .filter(t=>!existingTdIds.has(t.id)&&!existingNames.has(t.content.trim().toLowerCase()))
           .map(t=>({
             id:Date.now()+Math.random(),
             name:t.content,
@@ -1884,6 +1894,80 @@ function App(){
               <div style={{flexShrink:0,background:q.projColor+"22",border:"1px solid "+q.projColor+"44",borderRadius:6,padding:"3px 7px",fontSize:11,fontWeight:700,color:q.projColor,fontFamily:"monospace"}}>
                 {q.projShort}
               </div>
+              <div style={{flex:1}}>
+                <div style={{fontSize:13,color:"#f0ece4",lineHeight:1.4}}>{q.name}</div>
+                <div style={{fontSize:10,color:"#555",marginTop:3,fontFamily:"monospace"}}>Тиждень {q.week} · {q.projEmoji} {q.projShort}</div>
+              </div>
+            </div>)}
+          </div>
+          <button onClick={()=>setShowTomorrowTasksAlert(false)}
+            style={{width:"100%",background:"rgba(184,122,219,0.12)",border:"1px solid rgba(184,122,219,0.35)",borderRadius:10,padding:"12px",color:"#b87adb",fontSize:13,fontWeight:700,cursor:"pointer"}}>
+            💜 Зрозуміло, дякую!
+          </button>
+        </div>
+      </div>;
+    })()}
+
+    {/* ── Задачі на сьогодні ── */}
+    {showDueTodayAlert&&(()=>{
+      const today=new Date().toISOString().slice(0,10);
+      const dueQuests=PROJECTS.flatMap(p=>
+        (g.projects[p.id]?.weeks||[]).flatMap((w,wi)=>
+          w.quests
+            .filter(q=>!q.done&&q.dueDate===today)
+            .map(q=>({...q,projId:p.id,projShort:p.short,projEmoji:p.emoji,projColor:p.color,week:wi+1}))
+        )
+      );
+      return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.88)",zIndex:10003,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+        <div style={{background:"#161921",border:"2px solid rgba(200,168,64,0.4)",borderRadius:16,padding:"20px",width:"100%",maxWidth:420,maxHeight:"80vh",overflowY:"auto"}}>
+          <div style={{textAlign:"center",marginBottom:16}}>
+            <div style={{fontSize:32,marginBottom:6}}>📅</div>
+            <div style={{fontSize:14,fontWeight:700,color:"#f0ece4",marginBottom:4}}>У тебе сьогодні заплановані задачі!</div>
+            <div style={{fontSize:11,color:"#555"}}>{dueQuests.length} квест{dueQuests.length===1?"":"и"} з датою на сьогодні</div>
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:16}}>
+            {dueQuests.map(q=><div key={q.id} style={{background:"rgba(255,255,255,0.03)",border:"1px solid #252a35",borderRadius:10,padding:"10px 14px",display:"flex",alignItems:"flex-start",gap:10}}>
+              <div style={{flexShrink:0,background:q.projColor+"22",border:"1px solid "+q.projColor+"44",borderRadius:6,padding:"3px 7px",fontSize:11,fontWeight:700,color:q.projColor,fontFamily:"monospace"}}>{q.projShort}</div>
+              <div style={{flex:1}}>
+                <div style={{fontSize:13,color:"#f0ece4",lineHeight:1.4}}>{q.name}</div>
+                <div style={{fontSize:10,color:"#555",marginTop:3,fontFamily:"monospace"}}>Тиждень {q.week} · {q.projEmoji} {q.projShort}</div>
+              </div>
+            </div>)}
+          </div>
+          <div style={{display:"flex",gap:8}}>
+            <button onClick={()=>{setShowDueTodayAlert(false);setScreen("quests");}}
+              style={{flex:2,background:"rgba(200,168,64,0.15)",border:"1px solid rgba(200,168,64,0.4)",borderRadius:10,padding:"11px",color:"#c8a840",fontSize:13,fontWeight:700,cursor:"pointer"}}>
+              📋 Перейти до квестів →
+            </button>
+            <button onClick={()=>setShowDueTodayAlert(false)}
+              style={{flex:1,background:"transparent",border:"1px solid #252a35",borderRadius:10,padding:"11px",color:"#555",fontSize:13,cursor:"pointer"}}>
+              Зрозуміло
+            </button>
+          </div>
+        </div>
+      </div>;
+    })()}
+
+    {/* ── Задачі на завтра ── */}
+    {showTomorrowTasksAlert&&(()=>{
+      const tomorrow=new Date(Date.now()+86400000).toISOString().slice(0,10);
+      const tomorrowQuests=PROJECTS.flatMap(p=>
+        (g.projects[p.id]?.weeks||[]).flatMap((w,wi)=>
+          w.quests
+            .filter(q=>!q.done&&q.dueDate===tomorrow)
+            .map(q=>({...q,projId:p.id,projShort:p.short,projEmoji:p.emoji,projColor:p.color,week:wi+1}))
+        )
+      );
+      return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.88)",zIndex:10003,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+        <div style={{background:"#161921",border:"2px solid rgba(184,122,219,0.4)",borderRadius:16,padding:"20px",width:"100%",maxWidth:420,maxHeight:"80vh",overflowY:"auto"}}>
+          <div style={{textAlign:"center",marginBottom:16}}>
+            <div style={{fontSize:32,marginBottom:6}}>🌙</div>
+            <div style={{fontSize:14,fontWeight:700,color:"#f0ece4",marginBottom:6}}>Нагадую, завтра у тебе в записах такі задачі</div>
+            <div style={{fontSize:11,color:"#555"}}>{tomorrowQuests.length} квест{tomorrowQuests.length===1?"":"и"} заплановано на завтра</div>
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:16}}>
+            {tomorrowQuests.map(q=><div key={q.id} style={{background:"rgba(255,255,255,0.03)",border:"1px solid #252a35",borderRadius:10,padding:"10px 14px",display:"flex",alignItems:"flex-start",gap:10}}>
+              <div style={{flexShrink:0,background:q.projColor+"22",border:"1px solid "+q.projColor+"44",borderRadius:6,padding:"3px 7px",fontSize:11,fontWeight:700,color:q.projColor,fontFamily:"monospace"}}>{q.projShort}</div>
               <div style={{flex:1}}>
                 <div style={{fontSize:13,color:"#f0ece4",lineHeight:1.4}}>{q.name}</div>
                 <div style={{fontSize:10,color:"#555",marginTop:3,fontFamily:"monospace"}}>Тиждень {q.week} · {q.projEmoji} {q.projShort}</div>
@@ -3087,6 +3171,13 @@ function App(){
                       const bonus=calcEveningBonus(new Date());
                       upd(p=>({...p,workFinished:true,mana:bonus&&bonus.mana>0?p.mana+bonus.mana:p.mana}));
                       if(bonus){setEveningBonus(bonus);setTimeout(()=>setEveningBonus(null),2800);}
+                      const tomorrow=new Date(Date.now()+86400000).toISOString().slice(0,10);
+                      const hasTomorrow=PROJECTS.some(p=>
+                        g.projects[p.id]?.weeks.some(w=>
+                          w.quests.some(q=>!q.done&&q.dueDate===tomorrow)
+                        )
+                      );
+                      if(hasTomorrow) setTimeout(()=>setShowTomorrowTasksAlert(true),1000);
                       // Показати задачі на завтра
                       const tomorrow=new Date(Date.now()+86400000).toISOString().slice(0,10);
                       const hasTomorrow=PROJECTS.some(p=>
