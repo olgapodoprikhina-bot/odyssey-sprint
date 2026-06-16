@@ -3208,14 +3208,6 @@ function App(){
                         )
                       );
                       if(hasTomorrow) setTimeout(()=>setShowTomorrowTasksAlert(true),1000);
-                      // Показати задачі на завтра
-                      const tomorrow=new Date(Date.now()+86400000).toISOString().slice(0,10);
-                      const hasTomorrow=PROJECTS.some(p=>
-                        g.projects[p.id]?.weeks.some(w=>
-                          w.quests.some(q=>!q.done&&q.dueDate===tomorrow)
-                        )
-                      );
-                      if(hasTomorrow) setTimeout(()=>setShowTomorrowTasksAlert(true),1000);
                     }}
                     style={{width:"100%",background:tomorrowReady?"rgba(240,208,112,0.1)":"rgba(255,255,255,0.03)",border:"1px solid "+(tomorrowReady?"rgba(240,208,112,0.35)":"#1e2028"),borderRadius:10,padding:"13px",color:tomorrowReady?"#f0d070":"#333",fontSize:14,fontWeight:700,cursor:tomorrowReady?"pointer":"not-allowed",marginBottom:14,display:"flex",alignItems:"center",justifyContent:"center",gap:8,transition:"all 0.3s"}}>
                     {tomorrowReady?"🏁 Завершую роботу":"🏁 Завершую роботу (заповни план ↓)"}
