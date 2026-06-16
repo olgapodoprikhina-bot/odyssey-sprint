@@ -718,6 +718,12 @@ function App(){
         if(remote._updatedAt<=localTs) return; // наше власне або старіше — пропускаємо
         try{
           const s=JSON.parse(remote[SAVE_KEY]);
+          // Якщо Firebase дані з іншого дня — не перезаписуємо (скид вже відбувся)
+          const today=new Date().toISOString().slice(0,10);
+          if(s.lastActiveDate&&s.lastActiveDate!==today){
+            console.log('Firebase subscribe: remote data is from another day, skipping');
+            return;
+          }
           localStorage.setItem(SAVE_KEY,remote[SAVE_KEY]);
           localStorage.setItem(SAVE_KEY+"_ts",String(remote._updatedAt));
           setG(s);
