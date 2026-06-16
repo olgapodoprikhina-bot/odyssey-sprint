@@ -509,7 +509,6 @@ function App(){
   const [sosQuestId,setSosQuestId]=useState(null);
   const [showDueTodayAlert,setShowDueTodayAlert]=useState(false);
   const [showTomorrowTasksAlert,setShowTomorrowTasksAlert]=useState(false);
-  const [showTomorrowTasksAlert,setShowTomorrowTasksAlert]=useState(false);
   const [spoonsReminderType,setSpoonsReminderType]=useState("auto");
   const [startBonus,setStartBonus]=useState(null); // {level,mana} | null // для лічильника 9:00
   const [eveningBonus,setEveningBonus]=useState(null); // аналог для 18:30
@@ -1771,7 +1770,7 @@ function App(){
           </div>
           <button onClick={()=>{setShowNPicker(false);setNSearch("");onNotion(null);}}
             style={{display:"block",width:"100%",textAlign:"left",background:"transparent",border:"none",padding:"4px 8px",color:"#444",fontSize:10,marginTop:2}}>
-            без прив'язки ·
+            без прив&#39;язки ·
           </button>
         </div>}
       </div>}
@@ -2073,7 +2072,7 @@ function App(){
 
         {/* Project mapping */}
         {(tdProjectList.length>0||g.todoist?.token)&&<div>
-          <div style={{fontFamily:"monospace",fontSize:9,letterSpacing:"0.15em",color:"#c8a840",textTransform:"uppercase",marginBottom:6}}>2. Прив'язати проекти Todoist</div>
+          <div style={{fontFamily:"monospace",fontSize:9,letterSpacing:"0.15em",color:"#c8a840",textTransform:"uppercase",marginBottom:6}}>2. Прив&#39;язати проекти Todoist</div>
           <div style={{fontSize:11,color:"#555",marginBottom:10}}>Вибери який проект Todoist відповідає A/B/C в грі</div>
           {PROJECTS.map(p=><div key={p.id} style={{marginBottom:10}}>
             <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:5}}>
@@ -2085,7 +2084,7 @@ function App(){
                 style={{width:"100%",background:"#161921",border:"1px solid #2a2820",borderRadius:7,padding:"9px 12px",color:"#f0ece4",fontSize:13,fontFamily:"inherit",outline:"none"}}
                 value={tdProjects[p.id]}
                 onChange={e=>setTdProjects(prev=>({...prev,[p.id]:e.target.value}))}>
-                <option value="">— не прив'язано —</option>
+                <option value="">— не прив&#39;язано —</option>
                 {tdProjectList.map(proj=><option key={proj.id} value={proj.id}>{proj.name}</option>)}
               </select>
               :<input
@@ -2106,7 +2105,7 @@ function App(){
                 style={{width:"100%",background:"#161921",border:"1px solid #2a2820",borderRadius:7,padding:"9px 12px",color:"#f0ece4",fontSize:13,fontFamily:"inherit",outline:"none"}}
                 value={tdProjects.inbox||""}
                 onChange={e=>setTdProjects(prev=>({...prev,inbox:e.target.value}))}>
-                <option value="">— не прив'язано —</option>
+                <option value="">— не прив&#39;язано —</option>
                 {tdProjectList.map(proj=><option key={proj.id} value={proj.id}>{proj.name}</option>)}
               </select>
               :<input
@@ -2340,7 +2339,7 @@ function App(){
               style={{width:"100%",background:"rgba(255,255,255,0.05)",border:"1px solid #252a35",borderRadius:8,padding:"8px 10px",color:"#f0ece4",fontSize:13}}/>
           </div>
         </div>
-        <input type="text" placeholder="Примітка (необов'язково)" value={breakForm.note}
+        <input type="text" placeholder="Примітка (необов&#39;язково)" value={breakForm.note}
           onChange={e=>setBreakForm(p=>({...p,note:e.target.value}))}
           style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid #252a35",borderRadius:8,padding:"9px 12px",color:"#f0ece4",fontSize:13,marginBottom:16}}/>
         <div style={{display:"flex",gap:10}}>
@@ -2431,7 +2430,7 @@ function App(){
 
         {/* Notion project list */}
         <div style={{background:"rgba(255,255,255,0.02)",border:"1px solid #1e2028",borderRadius:10,padding:"12px 14px"}}>
-          <div style={{fontSize:11,color:"#c8a840",fontWeight:700,marginBottom:6,fontFamily:"monospace",letterSpacing:"0.1em"}}>ПРОЕКТИ NOTION (для прив'язки задач)</div>
+          <div style={{fontSize:11,color:"#c8a840",fontWeight:700,marginBottom:6,fontFamily:"monospace",letterSpacing:"0.1em"}}>ПРОЕКТИ NOTION (для прив&#39;язки задач)</div>
           <div style={{fontSize:11,color:"#555",marginBottom:10,lineHeight:1.5}}>Назва — як відображатиметься в меню. ID — з URL проекту (32 символи між / і ?)</div>
           {(g.notion?.projList||[]).map((np,i)=><div key={i} style={{display:"flex",gap:6,marginBottom:6,alignItems:"center"}}>
             <input style={{...S.inp,fontSize:11,flex:"0 0 120px"}} placeholder="Назва проекту"
@@ -3082,7 +3081,7 @@ function App(){
               <div style={{background:dt.c+"15",border:"1px solid "+dt.c+"44",borderRadius:10,padding:"16px",textAlign:"center"}}>
                 <div style={{fontSize:32,marginBottom:8}}>{dt.e}</div>
                 <div style={{fontSize:14,fontWeight:700,color:dt.c,marginBottom:4}}>{dt.l}</div>
-                <div style={{fontSize:12,color:"#666",lineHeight:1.5}}>{dt.sub}<br/>Ніяких обов'язкових квестів.</div>
+                <div style={{fontSize:12,color:"#666",lineHeight:1.5}}>{dt.sub}<br/>Ніяких обов&#39;язкових квестів.</div>
                 <button onClick={()=>setShowDayOffModal(true)} style={{marginTop:10,fontSize:10,color:"#555",background:"transparent",border:"1px solid #252a35",borderRadius:8,padding:"4px 12px",cursor:"pointer"}}>змінити тип</button>
               </div>
               <button onClick={()=>setScreen("quests")} style={{marginTop:10,width:"100%",background:dt.c+"18",border:"1px solid "+dt.c+"33",borderRadius:8,padding:"10px",color:dt.c,fontSize:13,cursor:"pointer"}}>
@@ -3193,7 +3192,7 @@ function App(){
                 ?<>
                   {!tomorrowReady&&<div style={{background:"rgba(200,168,64,0.06)",border:"1px solid rgba(200,168,64,0.2)",borderRadius:10,padding:"10px 14px",marginBottom:14,display:"flex",alignItems:"center",gap:8}}>
                     <span style={{fontSize:16}}>👇</span>
-                    <div style={{fontSize:12,color:"#888",lineHeight:1.4}}>Спочатку заповни план на завтра — тоді з'явиться кнопка завершення</div>
+                    <div style={{fontSize:12,color:"#888",lineHeight:1.4}}>Спочатку заповни план на завтра — тоді з&#39;явиться кнопка завершення</div>
                   </div>}
                   <button
                     disabled={!tomorrowReady}
@@ -3680,7 +3679,7 @@ function App(){
           <div style={{fontSize:22,marginBottom:8}}>{planProj.emoji}</div>
           <div style={{fontSize:16,fontWeight:700,color:planProj.color,marginBottom:4}}>{planProj.label}</div>
           <div style={{fontSize:12,color:"#666",marginBottom:14,lineHeight:1.6}}>{planProj.desc}</div>
-          <div style={{fontSize:10,color:"#888",marginBottom:5,fontFamily:"monospace",textTransform:"uppercase",letterSpacing:"0.1em"}}>Назва проекту (необов'язково)</div>
+          <div style={{fontSize:10,color:"#888",marginBottom:5,fontFamily:"monospace",textTransform:"uppercase",letterSpacing:"0.1em"}}>Назва проекту (необов&#39;язково)</div>
           <input style={{...S.inp,marginBottom:12}} placeholder={planProj.label}
             value={planDraft[planProjId].name}
             onChange={e=>setPlanDraft(p=>({...p,[planProjId]:{...p[planProjId],name:e.target.value}}))}/>
@@ -3962,7 +3961,7 @@ function App(){
       {g.isDayOff&&<div style={{background:"rgba(184,122,219,0.1)",border:"1px solid rgba(184,122,219,0.35)",borderRadius:12,padding:"12px 16px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
         <div>
           <div style={{fontSize:13,fontWeight:700,color:"#b87adb"}}>🌿 Вихідний день</div>
-          <div style={{fontSize:11,color:"#666",marginTop:2}}>Квести за бажанням · без зобов'язань</div>
+          <div style={{fontSize:11,color:"#666",marginTop:2}}>Квести за бажанням · без зобов&#39;язань</div>
         </div>
         <button onClick={toggleDayOff} style={{fontSize:11,color:"#666",background:"transparent",border:"1px solid #333",borderRadius:8,padding:"5px 10px",cursor:"pointer"}}>Скасувати</button>
       </div>}
@@ -4618,7 +4617,7 @@ function App(){
     {screen==="flow"&&<div style={S.scr} className="fu">
       <div style={S.ttl}>🌊 Потік</div>
       <div style={{background:"rgba(74,138,212,0.1)",border:"1px solid rgba(74,138,212,0.3)",borderRadius:8,padding:"12px 14px",color:"#4a8fd4",fontSize:13,lineHeight:1.6}}>
-        Дії без зобов'язань і наслідків.<br/>
+        Дії без зобов&#39;язань і наслідків.<br/>
         <b>Не робота. Не марнування часу. Відновлення.</b><br/>
         <span style={{color:"#555",fontSize:12}}>Кожна дія повертає 🫘 фасолини</span>
       </div>
