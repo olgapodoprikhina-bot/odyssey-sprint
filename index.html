@@ -1176,7 +1176,7 @@ function App(){
       const newQuests=tasks
         .filter(t=>!t.parent_id && !t.checked)
         .filter(t=>!t.content.trimStart().startsWith("*"))
-        .filter(t=>!existingTdIds.has(t.id) && !existingNames.has(t.content.trim().toLowerCase()))
+        .filter(t=>!existingTdIds.has(t.id))
         .map(t=>({
           id:Date.now()+Math.random(),
           name:t.content,
@@ -1250,7 +1250,7 @@ function App(){
         const newQ=tasks
           .filter(t=>!t.parent_id&&!t.checked)
           .filter(t=>!t.content.trimStart().startsWith("*"))
-          .filter(t=>!existingTdIds.has(t.id)&&!existingNames.has(t.content.trim().toLowerCase()))
+          .filter(t=>!existingTdIds.has(t.id))
           .map(t=>({
             id:Date.now()+Math.random(),
             name:t.content,
