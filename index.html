@@ -835,11 +835,16 @@ function App(){
       spoons:{...p.spoons,current:spoonsNum},
     }));
     toast_(c.emoji+" "+c.label+" x"+c.mult+" · 🫘 "+spoonsNum,c.color);
-    // Показати задачі з датою на сьогодні
+    // Показати задачі з датою на сьогодні або прострочені
     const today=new Date().toISOString().slice(0,10);
     const hasDueToday=PROJECTS.some(p=>
       g.projects[p.id]?.weeks.some(w=>
-        w.quests.some(q=>!q.done&&q.dueDate===today)
+        w.quests.some(q=>{
+          if(q.done||!q.dueDate) return false;
+          const due=(q.dueDate||"").slice(0,10);
+          const diff=Math.round((new Date(due)-new Date(today))/(1000*60*60*24));
+          return !isNaN(diff)&&diff<=0;
+        })
       )
     );
     if(hasDueToday) setTimeout(()=>setShowDueTodayAlert(true),800);
@@ -1947,22 +1952,52 @@ function App(){
         (g.projects[p.id]?.weeks||[]).flatMap((w,wi)=>
           w.quests
             .filter(q=>!q.done&&q.dueDate===today)
-            .map(q=>({...q,projId:p.id,projShort:p.short,projEmoji:p.emoji,projColor:p.color,week:wi+1}))
+            .map(q=>({...q,projId:p.id,projShort:p.short,projEmoji:p.emoji,projColor:p.color,week:wi+1,overdue:false}))
         )
       );
+      const overdueQuests=PROJECTS.flatMap(p=>
+        (g.projects[p.id]?.weeks||[]).flatMap((w,wi)=>
+          w.quests.filter(q=>{
+            if(q.done||!q.dueDate) return false;
+            const due=(q.dueDate||"").slice(0,10);
+            if(due.length<10) return false;
+            const diff=Math.round((new Date(due)-new Date(today))/(1000*60*60*24));
+            return !isNaN(diff)&&diff<0&&due!==today;
+          }).map(q=>{
+            const due=(q.dueDate||"").slice(0,10);
+            const diff=Math.abs(Math.round((new Date(due)-new Date(today))/(1000*60*60*24)));
+            return {...q,projId:p.id,projShort:p.short,projEmoji:p.emoji,projColor:p.color,week:wi+1,overdueDays:diff};
+          })
+        )
+      );
+      const hasAny=dueQuests.length>0||overdueQuests.length>0;
+      if(!hasAny) return null;
       return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.88)",zIndex:10003,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
         <div style={{background:"#161921",border:"2px solid rgba(200,168,64,0.4)",borderRadius:16,padding:"20px",width:"100%",maxWidth:420,maxHeight:"80vh",overflowY:"auto"}}>
           <div style={{textAlign:"center",marginBottom:16}}>
             <div style={{fontSize:32,marginBottom:6}}>📅</div>
-            <div style={{fontSize:14,fontWeight:700,color:"#f0ece4",marginBottom:4}}>У тебе сьогодні заплановані задачі!</div>
-            <div style={{fontSize:11,color:"#555"}}>{dueQuests.length} квест{dueQuests.length===1?"":"и"} з датою на сьогодні</div>
+            <div style={{fontSize:14,fontWeight:700,color:"#f0ece4",marginBottom:4}}>Задачі на сьогодні</div>
+            <div style={{fontSize:11,color:"#555"}}>
+              {dueQuests.length>0&&<span>{dueQuests.length} на сьогодні</span>}
+              {dueQuests.length>0&&overdueQuests.length>0&&<span> · </span>}
+              {overdueQuests.length>0&&<span style={{color:"#e05555"}}>{overdueQuests.length} прострочено</span>}
+            </div>
           </div>
           <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:16}}>
-            {dueQuests.map(q=><div key={q.id} style={{background:"rgba(255,255,255,0.03)",border:"1px solid #252a35",borderRadius:10,padding:"10px 14px",display:"flex",alignItems:"flex-start",gap:10}}>
+            {dueQuests.length>0&&<div style={{fontSize:9,fontFamily:"monospace",color:"#c8a840",textTransform:"uppercase",letterSpacing:"0.12em",marginBottom:2}}>📅 На сьогодні</div>}
+            {dueQuests.map(q=><div key={q.id} style={{background:"rgba(200,168,64,0.05)",border:"1px solid rgba(200,168,64,0.2)",borderRadius:10,padding:"10px 14px",display:"flex",alignItems:"flex-start",gap:10}}>
               <div style={{flexShrink:0,background:q.projColor+"22",border:"1px solid "+q.projColor+"44",borderRadius:6,padding:"3px 7px",fontSize:11,fontWeight:700,color:q.projColor,fontFamily:"monospace"}}>{q.projShort}</div>
               <div style={{flex:1}}>
                 <div style={{fontSize:13,color:"#f0ece4",lineHeight:1.4}}>{q.name}</div>
                 <div style={{fontSize:10,color:"#555",marginTop:3,fontFamily:"monospace"}}>Тиждень {q.week} · {q.projEmoji} {q.projShort}</div>
+              </div>
+            </div>)}
+            {overdueQuests.length>0&&<div style={{fontSize:9,fontFamily:"monospace",color:"#e05555",textTransform:"uppercase",letterSpacing:"0.12em",marginTop:4,marginBottom:2}}>⚠️ Прострочено</div>}
+            {overdueQuests.map(q=><div key={q.id} style={{background:"rgba(224,85,85,0.06)",border:"1px solid rgba(224,85,85,0.25)",borderRadius:10,padding:"10px 14px",display:"flex",alignItems:"flex-start",gap:10}}>
+              <div style={{flexShrink:0,background:q.projColor+"22",border:"1px solid "+q.projColor+"44",borderRadius:6,padding:"3px 7px",fontSize:11,fontWeight:700,color:q.projColor,fontFamily:"monospace"}}>{q.projShort}</div>
+              <div style={{flex:1}}>
+                <div style={{fontSize:13,color:"#f0ece4",lineHeight:1.4}}>{q.name}</div>
+                <div style={{fontSize:10,color:"#e05555",marginTop:3,fontFamily:"monospace"}}>⚠️ прострочено {q.overdueDays} дн. · тиждень {q.week}</div>
               </div>
             </div>)}
           </div>
