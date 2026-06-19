@@ -1236,7 +1236,7 @@ function App(){
       });
 
       const skipped=tasks.filter(t=>!t.parent_id&&!t.checked).length-newQuests.length;
-      toast_(`✅ +${newQuests.length} нових${skipped>0?" · "+skipped+" вже є":""}","#4ab870"`,"#4ab870");
+      toast_("✅ +"+newQuests.length+" нових"+(skipped>0?" · "+skipped+" вже є":""),"#4ab870");
     }catch(e){toast_("Помилка: "+e.message,"#e05555");}
     setTdSyncing(false);
   };
@@ -1302,7 +1302,7 @@ function App(){
     // Також синхронізувати Inbox якщо прив'язаний
     const inboxId=g.todoist?.projects?.inbox||tdProjects.inbox;
     if(inboxId)syncInbox(inboxId,token);
-    else setTimeout(()=>toast_(totalAdded>0?`✅ +${totalAdded} нових задач`:"✅ Все актуально, нових немає","#4ab870"),300);
+    else setTimeout(()=>toast_(totalAdded>0?"✅ +"+totalAdded+" нових задач":"✅ Все актуально, нових немає","#4ab870"),300);
   };
 
   const syncInbox=async(inboxProjId,tokenOverride)=>{
@@ -1353,7 +1353,7 @@ function App(){
       const added=activeTasks.filter(t=>
         !(g.projects?.D?.weeks?.[wi]?.quests||[]).some(q=>q.todoistId===t.id)
       ).length;
-      toast_(`📥 Inbox: ${activeTasks.length} задач${added>0?" (+"+added+")":""}`, "#4ab8a0");
+      toast_("📥 Inbox: "+activeTasks.length+" задач"+(added>0?" (+"+added+")":""), "#4ab8a0");
     }catch(e){console.error("Inbox sync error",e);}
   };
 
@@ -1375,6 +1375,29 @@ function App(){
     return r.json();
   };
 
+  const EVENTS_DB_ID="b9bf53a663c44c9b86f5a4a85ec28c60";
+  const saveEveningToNotion=async(eveningText)=>{
+    const token=g.notion?.token||notionToken;
+    if(!token||!eveningText?.trim()) return;
+    const today=new Date();
+    const months=["січня","лютого","березня","квітня","травня","червня","липня","серпня","вересня","жовтня","листопада","грудня"];
+    const titleStr=today.getDate()+" "+months[today.getMonth()];
+    const dateStr=today.toISOString().slice(0,10);
+    try{
+      await notionFetch("pages",token,"POST",{
+        parent:{database_id:EVENTS_DB_ID},
+        properties:{
+          "title":{title:[{text:{content:titleStr}}]},
+          "Date":{date:{start:dateStr}},
+          "Описание":{rich_text:[{text:{content:eveningText.trim()}}]},
+        },
+      });
+      toast_("📓 Збережено в Notion","#4ab870");
+    }catch(e){
+      console.warn("Notion events save error:",e);
+    }
+  };
+
   const saveToNotion=async()=>{
     const token=g.notion?.token||notionToken;
     const dbId=(g.notion?.dbId||notionDbId).replace(/-/g,"").trim();
@@ -1388,7 +1411,7 @@ function App(){
       // Підсумок квестів по проектах
       const projSummary=["A","B","C","D"].map(pid=>{
         const cnt=doneQ.filter(q=>q.projId===pid).length;
-        return cnt>0?`${pid}:${cnt}`:null;
+        return cnt>0?pid+":"+cnt:null;
       }).filter(Boolean).join(" · ")||"—";
 
       const body={
@@ -3239,6 +3262,8 @@ function App(){
                       const bonus=calcEveningBonus(new Date());
                       upd(p=>({...p,workFinished:true,mana:bonus&&bonus.mana>0?p.mana+bonus.mana:p.mana}));
                       if(bonus){setEveningBonus(bonus);setTimeout(()=>setEveningBonus(null),2800);}
+                      // Зберегти вечірні нотатки в Notion Events
+                      if(g.eveningActivity?.trim()) saveEveningToNotion(g.eveningActivity);
                       const tomorrow=new Date(Date.now()+86400000).toISOString().slice(0,10);
                       const hasTomorrow=PROJECTS.some(p=>
                         g.projects[p.id]?.weeks.some(w=>
