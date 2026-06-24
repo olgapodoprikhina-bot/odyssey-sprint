@@ -508,6 +508,7 @@ function App(){
   const [showDayOffModal,setShowDayOffModal]=useState(false);
   const [sosQuestId,setSosQuestId]=useState(null);
   const [showDueTodayAlert,setShowDueTodayAlert]=useState(false);
+  const dueAlertShownRef=useRef(false); // щоб алерт показався 1 раз за ранок
   const [showTomorrowTasksAlert,setShowTomorrowTasksAlert]=useState(false);
   const [spoonsReminderType,setSpoonsReminderType]=useState("auto");
   const [startBonus,setStartBonus]=useState(null); // {level,mana} | null // для лічильника 9:00
@@ -795,6 +796,29 @@ function App(){
     return()=>clearInterval(t);
   },[loaded,g.lastSpoonsReminder]);
 
+  // Алерт «Задачі на сьогодні / прострочені» — показати ПІСЛЯ вибору режиму дня,
+  // тобто коли вже з'явилась надпис «Готово! Переходь до Квестів» (g.energy && g.mode).
+  useEffect(()=>{
+    if(screen!=="morning"){ dueAlertShownRef.current=false; return; }
+    if(!g.energy||!g.mode) return;
+    if(dueAlertShownRef.current) return;
+    const today=new Date().toISOString().slice(0,10);
+    const hasDueToday=PROJECTS.some(p=>
+      g.projects[p.id]?.weeks.some(w=>
+        w.quests.some(q=>{
+          if(q.done||!q.dueDate) return false;
+          const due=(q.dueDate||"").slice(0,10);
+          const diff=Math.round((new Date(due)-new Date(today))/(1000*60*60*24));
+          return !isNaN(diff)&&diff<=0;
+        })
+      )
+    );
+    if(!hasDueToday) return;
+    dueAlertShownRef.current=true;
+    const t=setTimeout(()=>setShowDueTodayAlert(true),600);
+    return()=>clearTimeout(t);
+  },[screen,g.energy,g.mode]);
+
   // Ritual timer
   const playBeep=()=>{try{const ctx=new(window.AudioContext||window.webkitAudioContext)();[[660,0],[880,0.2],[1047,0.4]].forEach(([freq,delay])=>{const o=ctx.createOscillator();const gn=ctx.createGain();o.connect(gn);gn.connect(ctx.destination);o.frequency.value=freq;o.type="sine";gn.gain.setValueAtTime(0,ctx.currentTime+delay);gn.gain.linearRampToValueAtTime(0.45,ctx.currentTime+delay+0.04);gn.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+delay+0.45);o.start(ctx.currentTime+delay);o.stop(ctx.currentTime+delay+0.5);});}catch{}};
   useEffect(()=>{
@@ -835,19 +859,9 @@ function App(){
       spoons:{...p.spoons,current:spoonsNum},
     }));
     toast_(c.emoji+" "+c.label+" x"+c.mult+" · 🫘 "+spoonsNum,c.color);
-    // Показати задачі з датою на сьогодні або прострочені
-    const today=new Date().toISOString().slice(0,10);
-    const hasDueToday=PROJECTS.some(p=>
-      g.projects[p.id]?.weeks.some(w=>
-        w.quests.some(q=>{
-          if(q.done||!q.dueDate) return false;
-          const due=(q.dueDate||"").slice(0,10);
-          const diff=Math.round((new Date(due)-new Date(today))/(1000*60*60*24));
-          return !isNaN(diff)&&diff<=0;
-        })
-      )
-    );
-    if(hasDueToday) setTimeout(()=>setShowDueTodayAlert(true),800);
+    // Алерт задач на сьогодні/прострочених тепер показується після вибору режиму дня
+    // (коли з'являється «Готово! Переходь до Квестів») — див. useEffect нижче.
+    dueAlertShownRef.current=false;
   };
 
   // Розрахунок бонусу за старт о 9:00
