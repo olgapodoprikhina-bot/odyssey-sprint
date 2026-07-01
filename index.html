@@ -506,7 +506,6 @@ function App(){
   const [showSpoonsReminder,setShowSpoonsReminder]=useState(false);
   const [showSosAlert,setShowSosAlert]=useState(false);
   const [showDayOffModal,setShowDayOffModal]=useState(false);
-  const [fmForm,setFmForm]=useState({from:"",to:new Date(Date.now()-86400000).toISOString().slice(0,10),type:"force"});
   const [sosQuestId,setSosQuestId]=useState(null);
   const [showDueTodayAlert,setShowDueTodayAlert]=useState(false);
   const dueAlertShownRef=useRef(false); // щоб алерт показався 1 раз за ранок
@@ -1047,34 +1046,30 @@ function App(){
       return{...p,isDayOff,dayOffType,dayOffDates,dayOffTypes,dragon};
     });
   };
-  // Позначити ДІАПАЗОН минулих днів одним типом (напр. форс-мажор).
-  // Сьогодні НІКОЛИ не чіпається — залишається робочим днем.
-  const markRangeDayOff=(fromStr,toStr,type)=>{
+  // Клік по клітинці календаря: перемкнути форс-мажор для конкретної дати.
+  // Золота/зелена клітинка -> червона (форс-мажор). Червона -> знову робоча.
+  const toggleDateForce=(dayDate)=>{
+    if(!dayDate)return;
     const today=new Date().toISOString().slice(0,10);
-    if(!fromStr||!toStr){toast_("Вкажи обидві дати діапазону","#e05555");return;}
-    let start=fromStr,end=toStr;
-    if(start>end){const t=start;start=end;end=t;}
-    const dates=[];
-    let d=new Date(start+"T00:00:00");
-    const endD=new Date(end+"T00:00:00");
-    let guard=0;
-    while(d<=endD&&guard<400){
-      const iso=d.toISOString().slice(0,10);
-      if(iso!==today)dates.push(iso);
-      d=new Date(d.getTime()+86400000);
-      guard++;
-    }
-    if(dates.length===0){toast_("У діапазоні немає днів окрім сьогодні","#e05555");return;}
     upd(p=>{
-      const merged=(p.dayOffDates||[]).filter(x=>x!==today);
-      dates.forEach(iso=>{if(merged.indexOf(iso)===-1)merged.push(iso);});
+      const inList=(p.dayOffDates||[]).includes(dayDate);
+      const isForce=inList&&((p.dayOffTypes||{})[dayDate]==="force");
+      let dayOffDates=(p.dayOffDates||[]).slice();
       const dayOffTypes={...(p.dayOffTypes||{})};
-      delete dayOffTypes[today];
-      dates.forEach(iso=>{dayOffTypes[iso]=type;});
-      return{...p,dayOffDates:merged,dayOffTypes,isDayOff:false,dayOffType:null};
+      let extra={};
+      if(isForce){
+        dayOffDates=dayOffDates.filter(d=>d!==dayDate);
+        delete dayOffTypes[dayDate];
+        if(dayDate===today){extra={isDayOff:false,dayOffType:null};}
+      } else {
+        if(dayOffDates.indexOf(dayDate)===-1)dayOffDates.push(dayDate);
+        dayOffTypes[dayDate]="force";
+        if(dayDate===today){extra={isDayOff:true,dayOffType:"force"};}
+      }
+      return{...p,dayOffDates,dayOffTypes,...extra};
     });
-    const label=(DAY_OFF_TYPES.find(t=>t.id===type)||{}).l||type;
-    toast_("Позначено "+dates.length+" дн. · "+label,"#cc1a1a");
+    const willBeForce=!(((g.dayOffTypes||{})[dayDate]==="force")&&(g.dayOffDates||[]).includes(dayDate));
+    toast_(willBeForce?"🚗 Форс-мажор · "+dayDate.slice(8,10)+"."+dayDate.slice(5,7):"↩️ Знову робочий · "+dayDate.slice(8,10)+"."+dayDate.slice(5,7),willBeForce?"#cc1a1a":"#888");
   };
   const addSprintConst=q=>{
     if((g.sprintConstants||[]).find(c=>c.name===q.name&&c.active))return toast_("Вже є в константах","#c8a840");
@@ -1973,35 +1968,6 @@ function App(){
             style={{padding:"10px",background:"transparent",border:"1px solid #2a1515",borderRadius:10,color:"#555",fontSize:12,cursor:"pointer",marginTop:4}}>
             Скасувати — це робочий день
           </button>}
-          <div style={{marginTop:14,borderTop:"1px solid #252a35",paddingTop:14}}>
-            <div style={{fontSize:12,fontWeight:700,color:"#f0ece4",marginBottom:4}}>Позначити минулі дні</div>
-            <div style={{fontSize:11,color:"#666",lineHeight:1.4,marginBottom:10}}>Якщо тебе не було кілька днів — обери діапазон і тип. Сьогодні залишиться робочим днем.</div>
-            <div style={{display:"flex",gap:8,marginBottom:10}}>
-              <div style={{flex:1}}>
-                <div style={{fontSize:9,color:"#555",fontFamily:"monospace",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:4}}>Від</div>
-                <input type="date" value={fmForm.from} onChange={e=>setFmForm(p=>({...p,from:e.target.value}))}
-                  style={{width:"100%",background:"#0d0f14",border:"1px solid #2a2820",borderRadius:8,padding:"9px 10px",color:"#f0ece4",fontSize:13,fontFamily:"inherit",outline:"none"}}/>
-              </div>
-              <div style={{flex:1}}>
-                <div style={{fontSize:9,color:"#555",fontFamily:"monospace",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:4}}>До</div>
-                <input type="date" value={fmForm.to} onChange={e=>setFmForm(p=>({...p,to:e.target.value}))}
-                  style={{width:"100%",background:"#0d0f14",border:"1px solid #2a2820",borderRadius:8,padding:"9px 10px",color:"#f0ece4",fontSize:13,fontFamily:"inherit",outline:"none"}}/>
-              </div>
-            </div>
-            <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:12}}>
-              {DAY_OFF_TYPES.map(t=>{
-                const sel=fmForm.type===t.id;
-                return <button key={t.id} onClick={()=>setFmForm(p=>({...p,type:t.id}))}
-                  style={{display:"flex",alignItems:"center",gap:5,padding:"6px 9px",background:sel?t.c+"22":"rgba(255,255,255,0.03)",border:"1px solid "+(sel?t.c:"#252a35"),borderRadius:8,color:sel?t.c:"#888",fontSize:11,fontWeight:sel?700:400,cursor:"pointer",transition:"all 0.2s"}}>
-                  <span style={{fontSize:14}}>{t.e}</span><span>{t.l}</span>
-                </button>;
-              })}
-            </div>
-            <button onClick={()=>{markRangeDayOff(fmForm.from,fmForm.to,fmForm.type);setShowDayOffModal(false);}}
-              style={{width:"100%",background:"rgba(204,26,26,0.12)",border:"1px solid rgba(204,26,26,0.4)",borderRadius:10,padding:"11px",color:"#e05555",fontSize:13,fontWeight:700,cursor:"pointer"}}>
-              Позначити діапазон
-            </button>
-          </div>
         </div>
       </div>
     </div>}
@@ -2841,6 +2807,7 @@ function App(){
               {sprintDaysLeft===0?"⚠️ Останній день!":sprintDaysLeft===1?"⚠️ Залишився 1 день":sprintDaysLeft<=7?sprintDaysLeft+" днів залишилось":sprintDaysLeft+" днів"}
             </span>
           </div>
+          <div style={{fontSize:9,color:"#4a4a4a",marginBottom:6,fontStyle:"italic"}}>Клік по дню (минулому або сьогодні) — позначити форс-мажор або повернути робочий.</div>
           <div style={{display:"flex",flexDirection:"column",gap:4}}>
             {[1,2,3].map(wk=>{
               const wkStart=(wk-1)*7;
@@ -2864,7 +2831,8 @@ function App(){
                     else if(isPast){bg="#c8a840";border="transparent";}
                     else if(isToday){bg="#c8a840";border="#f0d070";}
                     else{bg="#1a1a1a";border="#252a35";}
-                    return <div key={i} style={{flex:1,height:isToday?22:16,borderRadius:4,background:bg,border:"2px solid "+(isToday&&!isDayOff?border:"transparent"),transition:"all 0.3s",boxShadow:isToday&&!isDayOff?"0 0 8px #c8a840aa":isDayOff?"0 0 6px "+dayOffCol+"66":"none",position:"relative"}}>
+                    const editable=!!dayDate&&dayIdx<=effectiveSprintDay;
+                    return <div key={i} onClick={editable?()=>toggleDateForce(dayDate):undefined} title={editable?"Клік — форс-мажор / робочий":undefined} style={{flex:1,height:isToday?22:16,borderRadius:4,background:bg,border:"2px solid "+(isToday&&!isDayOff?border:"transparent"),transition:"all 0.3s",boxShadow:isToday&&!isDayOff?"0 0 8px #c8a840aa":isDayOff?"0 0 6px "+dayOffCol+"66":"none",position:"relative",cursor:editable?"pointer":"default"}}>
                       {isToday&&<div style={{position:"absolute",top:-14,left:"50%",transform:"translateX(-50%)",fontSize:9,color:isDayOff?dayOffCol:"#c8a840",fontWeight:700,whiteSpace:"nowrap"}}>{isDayOff?"🌿":"сьогодні"}</div>}
                     </div>;
                   })}
