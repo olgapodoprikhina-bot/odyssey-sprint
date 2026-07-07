@@ -264,6 +264,36 @@ const MILESTONE_STEPS=[
   {key:"w1",label:"Тиждень 1 — стартовий рубіж", q:"Що зроблено до кінця тижня 1,\nщоб тиждень 2 став можливим?",hint:"Думай НАЗАД від тижня 2."},
 ];
 
+// Каркас усвідомленого запуску курсу/звички: Що, Навіщо, Як, На що міняємо, План Б, Перевірка
+const COURSE_FRAMEWORK_STEPS=[
+  {icon:"🎯",title:"Що саме?",fields:[
+    {key:"coreAction",q:"Яку одну конкретну справу ви будете доводити до кінця?",hint:"Одне-єдине дійство або клас задач. Не беріть комплекс задач одразу.",placeholder:"Наприклад: бігати доріжкою 5 км, 4 рази на тиждень"},
+    {key:"startPoint",q:"Зафіксуйте точку старту (поточний параметр)",hint:"Параметр, з якого ви починаєте інсталяцію звички.",placeholder:"Наприклад: поточна вага, 0 хвилин занять, поточна к-сть цигарок"},
+  ]},
+  {icon:"💚",title:"Навіщо?",fields:[
+    {key:"joy",q:"Яку радість, гордість чи задоволення отримає ваше внутрішнє «Я» від цієї зміни?",hint:"Уникайте мотивації страхом.",placeholder:"Наприклад: гордість за витривалість, легкість у тілі"},
+    {key:"measurable",q:"У якому конкретному, відчутному вигляді ви побачите прогрес прямо зараз або за день?",hint:"",placeholder:"Наприклад: конкретна вага, об'єм легень, к-сть поверхів без задишки"},
+  ]},
+  {icon:"🔁",title:"Як? Механіка петлі звички",fields:[
+    {key:"trigger",q:"До якого конкретного часу, місця чи обставини буде жорстко прив'язаний старт дії? (сигнал)",hint:"",placeholder:"Наприклад: одразу після ранкової кави, о 7:00"},
+    {key:"method",q:"Максимально конкретний опис дії (метод)",hint:"",placeholder:"Наприклад: бігати доріжкою 5 км, 4 рази на тиждень"},
+    {key:"place",q:"Точне місце виконання",hint:"",placeholder:"Наприклад: вдома, в парку, за робочим столом"},
+  ]},
+  {icon:"🔄",title:"Що на що міняємо?",fields:[
+    {key:"replace",q:"Що приємне ви додаєте в сам процес, або чим замінюєте стару деструктивну дію?",hint:"",placeholder:"Наприклад: замість їжі — прогулянка, під час тренування — улюблений серіал/музика"},
+    {key:"bonus",q:"Яку додаткову нагороду (не пов'язану напряму зі звичкою) отримаєте бонусом?",hint:"",placeholder:"Наприклад: складати гроші в «банку» на приємну покупку"},
+  ]},
+  {icon:"🛡️",title:"Безпека і підтримка — План Б",fields:[
+    {key:"planB",q:"Що ви робитимете, якщо звичний сценарій порушить зовнішній світ або виникне сильний дискомфорт?",hint:"Який ваш План Б?",placeholder:"Наприклад: якщо дощ — тренування вдома 15 хв"},
+    {key:"reminder",q:"Яка зовнішня «нагадувалка» або контроль допоможе не зійти з дистанції?",hint:"",placeholder:"Наприклад: звіт другу щовечора, нагадування в телефоні"},
+  ]},
+  {icon:"🚀",title:"Перевірка і запуск",fields:[
+    {key:"testResult",q:"Які підсумки попереднього 2-денного тест-драйву? Що варто підкрутити перед стартом?",hint:"Необов'язково, якщо тест-драйву ще не було.",placeholder:"Необов'язково"},
+    {key:"launchNote",q:"Нотатка щодо дати запуску",hint:"Раджу обирати звичайний прохідний день у середині тижня, уникаючи пафосних круглих дат (1 січня, день народження).",placeholder:"Необов'язково"},
+  ]},
+];
+const freshCoursePlan=()=>({coreAction:"",startPoint:"",joy:"",measurable:"",trigger:"",method:"",place:"",replace:"",bonus:"",planB:"",reminder:"",testResult:"",launchNote:""});
+
 const freshProject=pid=>({
   id:pid,name:PROJECTS.find(p=>p.id===pid).label,goal:"",why:"",values:[],
   weeks:[{num:1,milestone:"",quests:[]},{num:2,milestone:"",quests:[]},{num:3,milestone:"",quests:[]}],
@@ -493,6 +523,8 @@ function App(){
   const [homeOpen,setHomeOpen]=useState({sprint:true,time:false,spoons:false,constants:false,stats:false,day:false,break:false,tomorrow:false,nav:false,sprintTab:"calendar"});
   const [showCourseModal,setShowCourseModal]=useState(false);
   const [courseForm,setCourseForm]=useState({name:"",days:"",startDate:new Date().toISOString().slice(0,10)});
+  const [courseStep,setCourseStep]=useState(0); // 0 = основні поля, 1..6 = кроки каркасу
+  const [coursePlan,setCoursePlan]=useState(freshCoursePlan());
   // Quests grouping
   const [questsGroupBy,setQuestsGroupBy]=useState("none"); // "none" | "notion" | "proj"
   // History
@@ -1089,11 +1121,22 @@ function App(){
   const closeSprintConst=id=>{
     upd(p=>({...p,sprintConstants:(p.sprintConstants||[]).map(c=>c.id===id?{...c,active:false}:c)}));
   };
-  const addCourseConst=(name,days,startDate)=>{
+  const addCourseConst=(name,days,startDate,plan)=>{
     if(!name.trim()||!days||!startDate)return toast_("Заповни всі поля","#e05555");
-    const sc={id:Date.now(),name:name.trim(),type:"course",totalDays:parseInt(days),startDate,count:0,streak:0,lastDate:null,active:true};
+    const hasPlan=plan&&Object.values(plan).some(v=>v&&v.trim());
+    const sc={id:Date.now(),name:name.trim(),type:"course",totalDays:parseInt(days),startDate,count:0,streak:0,lastDate:null,active:true,plan:hasPlan?plan:null};
     upd(p=>({...p,sprintConstants:[...(p.sprintConstants||[]),sc]}));
     toast_("🌿 Курс додано як константу","#4ab870");
+  };
+  const closeCourseModal_=()=>{
+    setShowCourseModal(false);
+    setCourseForm({name:"",days:"",startDate:new Date().toISOString().slice(0,10)});
+    setCoursePlan(freshCoursePlan());
+    setCourseStep(0);
+  };
+  const submitCourseModal_=()=>{
+    addCourseConst(courseForm.name,courseForm.days,courseForm.startDate,coursePlan);
+    closeCourseModal_();
   };
   const doneHabit=hid=>{
     if(g.dailyHabits.includes(hid))return;
@@ -1868,37 +1911,84 @@ function App(){
 
     {/* ── Модалка: Додати курс ── */}
     {showCourseModal&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:10000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-      <div style={{background:"#161921",border:"1px solid #252a35",borderRadius:16,padding:24,width:"100%",maxWidth:400}}>
-        <div style={{fontFamily:"monospace",fontSize:11,letterSpacing:"0.15em",color:"#4ab870",textTransform:"uppercase",marginBottom:16}}>🌿 Новий курс</div>
-        <div style={{marginBottom:12}}>
-          <div style={{fontSize:11,color:"#888",marginBottom:4}}>Назва курсу</div>
-          <input value={courseForm.name} onChange={e=>setCourseForm(p=>({...p,name:e.target.value}))}
-            placeholder="Кефір з насінням льону"
-            style={{width:"100%",background:"#0d0f14",border:"1px solid #252a35",borderRadius:8,padding:"9px 11px",color:"#f0ece4",fontSize:13}}/>
+      <div style={{background:"#161921",border:"1px solid #252a35",borderRadius:16,padding:24,width:"100%",maxWidth:420,maxHeight:"88vh",overflowY:"auto"}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:courseStep===0?16:6}}>
+          <div style={{fontFamily:"monospace",fontSize:11,letterSpacing:"0.15em",color:"#4ab870",textTransform:"uppercase"}}>🌿 Новий курс</div>
+          {courseStep>0&&<div style={{fontSize:10,color:"#555",fontFamily:"monospace"}}>Крок {courseStep+1} з 7</div>}
         </div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:16}}>
-          <div>
-            <div style={{fontSize:11,color:"#888",marginBottom:4}}>Кількість днів</div>
-            <input type="number" min="1" max="365" value={courseForm.days} onChange={e=>setCourseForm(p=>({...p,days:e.target.value}))}
-              placeholder="30"
+        {courseStep>0&&<div style={{display:"flex",gap:4,marginBottom:16}}>
+          {[0,1,2,3,4,5,6].map(i=><div key={i} style={{flex:1,height:3,borderRadius:2,background:i<=courseStep?"#4ab870":"#252a35"}}/>)}
+        </div>}
+
+        {courseStep===0&&<>
+          <div style={{marginBottom:12}}>
+            <div style={{fontSize:11,color:"#888",marginBottom:4}}>Назва курсу</div>
+            <input value={courseForm.name} onChange={e=>setCourseForm(p=>({...p,name:e.target.value}))}
+              placeholder="Кефір з насінням льону"
               style={{width:"100%",background:"#0d0f14",border:"1px solid #252a35",borderRadius:8,padding:"9px 11px",color:"#f0ece4",fontSize:13}}/>
           </div>
-          <div>
-            <div style={{fontSize:11,color:"#888",marginBottom:4}}>Дата початку</div>
-            <input type="date" value={courseForm.startDate} onChange={e=>setCourseForm(p=>({...p,startDate:e.target.value}))}
-              style={{width:"100%",background:"#0d0f14",border:"1px solid #252a35",borderRadius:8,padding:"9px 11px",color:"#f0ece4",fontSize:13}}/>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:16}}>
+            <div>
+              <div style={{fontSize:11,color:"#888",marginBottom:4}}>Кількість днів</div>
+              <input type="number" min="1" max="365" value={courseForm.days} onChange={e=>setCourseForm(p=>({...p,days:e.target.value}))}
+                placeholder="30"
+                style={{width:"100%",background:"#0d0f14",border:"1px solid #252a35",borderRadius:8,padding:"9px 11px",color:"#f0ece4",fontSize:13}}/>
+            </div>
+            <div>
+              <div style={{fontSize:11,color:"#888",marginBottom:4}}>Дата початку</div>
+              <input type="date" value={courseForm.startDate} onChange={e=>setCourseForm(p=>({...p,startDate:e.target.value}))}
+                style={{width:"100%",background:"#0d0f14",border:"1px solid #252a35",borderRadius:8,padding:"9px 11px",color:"#f0ece4",fontSize:13}}/>
+            </div>
           </div>
-        </div>
-        <div style={{display:"flex",gap:8}}>
-          <button onClick={()=>setShowCourseModal(false)}
-            style={{flex:1,padding:"11px",background:"transparent",border:"1px solid #252a35",borderRadius:10,color:"#555",fontSize:13,cursor:"pointer"}}>
-            Скасувати
+          <div style={{display:"flex",gap:8,marginBottom:12}}>
+            <button onClick={closeCourseModal_}
+              style={{flex:1,padding:"11px",background:"transparent",border:"1px solid #252a35",borderRadius:10,color:"#555",fontSize:13,cursor:"pointer"}}>
+              Скасувати
+            </button>
+            <button onClick={()=>{
+                if(!courseForm.name.trim()||!courseForm.days||!courseForm.startDate)return toast_("Заповни всі поля","#e05555");
+                setCourseStep(1);
+              }}
+              style={{flex:2,padding:"11px",background:"rgba(74,184,112,0.15)",border:"1px solid rgba(74,184,112,0.4)",borderRadius:10,color:"#4ab870",fontSize:13,fontWeight:700,cursor:"pointer"}}>
+              Далі: усвідомити звичку →
+            </button>
+          </div>
+          <button onClick={()=>{
+              if(!courseForm.name.trim()||!courseForm.days||!courseForm.startDate)return toast_("Заповни всі поля","#e05555");
+              submitCourseModal_();
+            }}
+            style={{display:"block",width:"100%",textAlign:"center",background:"transparent",border:"none",color:"#444",fontSize:11,padding:"2px",cursor:"pointer"}}>
+            Пропустити план і одразу додати курс
           </button>
-          <button onClick={()=>{addCourseConst(courseForm.name,courseForm.days,courseForm.startDate);setShowCourseModal(false);setCourseForm({name:"",days:"",startDate:new Date().toISOString().slice(0,10)});}}
-            style={{flex:2,padding:"11px",background:"rgba(74,184,112,0.15)",border:"1px solid rgba(74,184,112,0.4)",borderRadius:10,color:"#4ab870",fontSize:13,fontWeight:700,cursor:"pointer"}}>
-            ✓ Додати курс
-          </button>
-        </div>
+        </>}
+
+        {courseStep>=1&&courseStep<=6&&(()=>{
+          const fs=COURSE_FRAMEWORK_STEPS[courseStep-1];
+          return <>
+            <div style={{fontSize:15,fontWeight:700,color:"#4ab870",marginBottom:14}}>{fs.icon} {fs.title}</div>
+            {fs.fields.map(f=><div key={f.key} style={{marginBottom:14}}>
+              <div style={{fontSize:12,fontWeight:600,marginBottom:f.hint?3:6,lineHeight:1.45}}>{f.q}</div>
+              {f.hint&&<div style={{fontSize:11,color:"#666",fontStyle:"italic",marginBottom:6,lineHeight:1.45}}>{f.hint}</div>}
+              <textarea value={coursePlan[f.key]} onChange={e=>setCoursePlan(p=>({...p,[f.key]:e.target.value}))}
+                placeholder={f.placeholder}
+                style={{width:"100%",minHeight:52,resize:"vertical",background:"#0d0f14",border:"1px solid #252a35",borderRadius:8,padding:"9px 11px",color:"#f0ece4",fontSize:13,fontFamily:"inherit",lineHeight:1.5}}/>
+            </div>)}
+            <div style={{display:"flex",gap:8,marginTop:4,marginBottom:12}}>
+              <button onClick={()=>setCourseStep(s=>s-1)}
+                style={{flex:1,padding:"11px",background:"transparent",border:"1px solid #252a35",borderRadius:10,color:"#777",fontSize:13,cursor:"pointer"}}>
+                ← Назад
+              </button>
+              <button onClick={()=>courseStep<6?setCourseStep(s=>s+1):submitCourseModal_()}
+                style={{flex:2,padding:"11px",background:"rgba(74,184,112,0.15)",border:"1px solid rgba(74,184,112,0.4)",borderRadius:10,color:"#4ab870",fontSize:13,fontWeight:700,cursor:"pointer"}}>
+                {courseStep<6?"Далі →":"✓ Додати курс"}
+              </button>
+            </div>
+            {courseStep<6&&<button onClick={submitCourseModal_}
+              style={{display:"block",width:"100%",textAlign:"center",background:"transparent",border:"none",color:"#444",fontSize:11,padding:"2px",cursor:"pointer"}}>
+              Пропустити решту і додати курс
+            </button>}
+          </>;
+        })()}
       </div>
     </div>}
 
