@@ -496,6 +496,7 @@ function App(){
   const [habitDraft,setHabitDraft]=useState({habit:"",morning:"",evening:""});
   const NOTION_PROJECTS_DB="ae29886e09414372bd4217e0cfbc22d9";
   const [notionQSending,setNotionQSending]=useState({}); // {questId: "sending"|"done"|"error"}
+  const [eveningNotionState,setEveningNotionState]=useState("idle"); // "idle"|"sending"|"done"|"error"
   const [showTodoist,setShowTodoist]=useState(false);
   const [showNotion,setShowNotion]=useState(false);
   const [notionToken,setNotionToken]=useState("");
@@ -1460,13 +1461,13 @@ function App(){
   const EVENTS_DB_ID="b9bf53a663c44c9b86f5a4a85ec28c60";
   const saveEveningToNotion=async(eveningText)=>{
     const token=g.notion?.token||notionToken;
-    if(!token||!eveningText?.trim()) return;
+    if(!token||!eveningText?.trim()) return false;
     const today=new Date();
     const months=["січня","лютого","березня","квітня","травня","червня","липня","серпня","вересня","жовтня","листопада","грудня"];
     const titleStr=today.getDate()+" "+months[today.getMonth()];
     const dateStr=today.toISOString().slice(0,10);
     try{
-      await notionFetch("pages",token,"POST",{
+      const res=await notionFetch("pages",token,"POST",{
         parent:{database_id:EVENTS_DB_ID},
         properties:{
           "title":{title:[{text:{content:titleStr}}]},
@@ -1474,9 +1475,18 @@ function App(){
           "Описание":{rich_text:[{text:{content:eveningText.trim()}}]},
         },
       });
-      toast_("📓 Збережено в Notion","#4ab870");
+      if(res?.id){
+        toast_("📓 Збережено в Notion","#4ab870");
+        return true;
+      }
+      const err=res?.message||res?.code||"невідома помилка";
+      toast_("Notion: "+err,"#e05555");
+      console.warn("Notion events save error:",res);
+      return false;
     }catch(e){
       console.warn("Notion events save error:",e);
+      toast_("Notion: "+e.message,"#e05555");
+      return false;
     }
   };
 
@@ -3393,8 +3403,8 @@ function App(){
                       const bonus=calcEveningBonus(new Date());
                       upd(p=>({...p,workFinished:true,mana:bonus&&bonus.mana>0?p.mana+bonus.mana:p.mana}));
                       if(bonus){setEveningBonus(bonus);setTimeout(()=>setEveningBonus(null),2800);}
-                      // Зберегти вечірні нотатки в Notion Events
-                      if(g.eveningActivity?.trim()) saveEveningToNotion(g.eveningActivity);
+                      // Зберегти вечірні нотатки в Notion Events (якщо ще не збережено кнопкою вище)
+                      if(g.eveningActivity?.trim()&&eveningNotionState!=="done") saveEveningToNotion(g.eveningActivity);
                       const tomorrow=new Date(Date.now()+86400000).toISOString().slice(0,10);
                       const hasTomorrow=PROJECTS.some(p=>
                         g.projects[p.id]?.weeks.some(w=>
@@ -3420,9 +3430,21 @@ function App(){
                 </div></>;
             })()}
             <div style={{fontSize:10,color:"#888",fontFamily:"monospace",textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:8}}>Чим плануєш займатись ввечері?</div>
-            <textarea value={g.eveningActivity||""} onChange={e=>upd(p=>({...p,eveningActivity:e.target.value}))}
+            <textarea value={g.eveningActivity||""} onChange={e=>{upd(p=>({...p,eveningActivity:e.target.value}));if(eveningNotionState!=="idle")setEveningNotionState("idle");}}
               placeholder="Прогулянка, серіал, книга, хобі..." rows={2}
-              style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid #252a35",borderRadius:8,padding:"10px 12px",color:"#f0ece4",fontSize:13,resize:"none",lineHeight:1.5,fontFamily:"system-ui,sans-serif",outline:"none",marginBottom:16,boxSizing:"border-box"}}/>
+              style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid #252a35",borderRadius:8,padding:"10px 12px",color:"#f0ece4",fontSize:13,resize:"none",lineHeight:1.5,fontFamily:"system-ui,sans-serif",outline:"none",marginBottom:8,boxSizing:"border-box"}}/>
+            <button
+              disabled={!g.eveningActivity?.trim()||eveningNotionState==="sending"}
+              onClick={async()=>{
+                if(!g.notion?.token){setShowNotion(true);return;}
+                setEveningNotionState("sending");
+                const ok=await saveEveningToNotion(g.eveningActivity);
+                setEveningNotionState(ok?"done":"error");
+                if(ok) setTimeout(()=>setEveningNotionState("idle"),2500);
+              }}
+              style={{width:"100%",background:eveningNotionState==="done"?"rgba(74,184,112,0.1)":eveningNotionState==="error"?"rgba(224,85,85,0.1)":"rgba(184,122,219,0.08)",border:"1px solid "+(eveningNotionState==="done"?"rgba(74,184,112,0.35)":eveningNotionState==="error"?"rgba(224,85,85,0.35)":"rgba(184,122,219,0.25)"),borderRadius:8,padding:"10px",color:eveningNotionState==="done"?"#4ab870":eveningNotionState==="error"?"#e05555":(g.eveningActivity?.trim()?"#b87adb":"#444"),fontSize:12,fontWeight:600,cursor:g.eveningActivity?.trim()?"pointer":"not-allowed",marginBottom:16,display:"flex",alignItems:"center",justifyContent:"center",gap:6,transition:"all 0.2s"}}>
+              {eveningNotionState==="sending"?"⏳ Додаю...":eveningNotionState==="done"?"✅ Додано в Notion":eveningNotionState==="error"?"✗ Помилка, спробуй ще":!g.notion?.token?"⬛ Спочатку підключи Notion":"⬛ Додати подію в Notion"}
+            </button>
             <div style={{fontSize:11,color:"#555",marginBottom:12,lineHeight:1.5}}>А тепер — план на завтра ↓</div>
             <div style={{fontSize:10,color:"#555",fontFamily:"monospace",textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:8}}>Завтра буде...</div>
             <div style={{display:"flex",gap:8,marginBottom:14}}>
