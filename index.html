@@ -1467,7 +1467,7 @@ function App(){
     const titleStr=today.getDate()+" "+months[today.getMonth()];
     const dateStr=today.toISOString().slice(0,10);
     try{
-      const res=await notionFetch("pages",token,"POST",{
+      const res=await notionFetch("/pages",token,"POST",{
         parent:{database_id:EVENTS_DB_ID},
         properties:{
           "title":{title:[{text:{content:titleStr}}]},
