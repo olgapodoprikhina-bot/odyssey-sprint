@@ -1468,7 +1468,12 @@ function App(){
         upd(p=>({...p,notion:{...p.notion,eventsDsId:dsId}}));
         return dsId;
       }
-    }catch(e){/* older API version without data sources — fall back to database_id */}
+      console.warn("Notion getEventsDataSourceId: no data_sources in response",db);
+      toast_("Debug GET /databases: "+JSON.stringify(db).slice(0,180),"#e0a555");
+    }catch(e){
+      console.warn("Notion getEventsDataSourceId error:",e);
+      toast_("Debug GET /databases error: "+e.message,"#e0a555");
+    }
     return null;
   };
   const saveEveningToNotion=async(eveningText)=>{
