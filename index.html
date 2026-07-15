@@ -1459,6 +1459,18 @@ function App(){
   };
 
   const EVENTS_DB_ID="33189c4d446b44d280fa7c2b1e74e6a5";
+  const getEventsDataSourceId=async(token)=>{
+    if(g.notion?.eventsDsId) return g.notion.eventsDsId;
+    try{
+      const db=await notionFetch("/databases/"+EVENTS_DB_ID,token,"GET");
+      const dsId=db?.data_sources?.[0]?.id;
+      if(dsId){
+        upd(p=>({...p,notion:{...p.notion,eventsDsId:dsId}}));
+        return dsId;
+      }
+    }catch(e){/* older API version without data sources — fall back to database_id */}
+    return null;
+  };
   const saveEveningToNotion=async(eveningText)=>{
     const token=g.notion?.token||notionToken;
     if(!token||!eveningText?.trim()) return false;
@@ -1467,8 +1479,10 @@ function App(){
     const titleStr=today.getDate()+" "+months[today.getMonth()];
     const dateStr=today.toISOString().slice(0,10);
     try{
+      const dsId=await getEventsDataSourceId(token);
+      const parent=dsId?{type:"data_source_id",data_source_id:dsId}:{database_id:EVENTS_DB_ID};
       const res=await notionFetch("/pages",token,"POST",{
-        parent:{database_id:EVENTS_DB_ID},
+        parent,
         properties:{
           "title":{title:[{text:{content:titleStr}}]},
           "Date":{date:{start:dateStr}},
