@@ -641,6 +641,7 @@ function App(){
           questsDone:s.dailyQuests.filter(q=>q.done).length,
           questsTotal:s.dailyQuests.length,
           questsCancelled:s.questsCancelledToday||0,
+          questsCarried:s.dailyQuests.filter(q=>!q.done&&!q.isSosQuest).length,
           habitsDone:(s.dailyHabits||[]).length,
           manaTotal:s.mana, // мана до додавання нової
           // По яких проектах виконано задачі
@@ -670,9 +671,24 @@ function App(){
         } else if(s.isDayOff){
           dragonEvent="dayoff";
         }
+        // Перенести невиконані квести на новий день (крім SOS-квестів)
+        const carriedQuests=s.dailyQuests
+          .filter(q=>!q.done&&!q.isSosQuest)
+          .map((q,i)=>({...q,id:Date.now()+i,done:false,carriedOver:true}));
+        // Позначити перенесені задачі в Notion (тег "Перенесено", не чіпаємо статус)
+        const notionTok=s.notion?.token;
+        if(notionTok){
+          carriedQuests.forEach(q=>{
+            if(q.notionPageId){
+              notionFetch("/pages/"+q.notionPageId,notionTok,"PATCH",{
+                properties:{"Тег":{select:{name:"Перенесено"}}},
+              }).catch(()=>{});
+            }
+          });
+        }
         const updated={...s,
           lastActiveDate:today,
-          dailyQuests:[],
+          dailyQuests:carriedQuests,
           microDone:[],
           dailyHabits:[],
           spoons:{...s.spoons,current:10,lastDate:today},
@@ -1855,6 +1871,7 @@ function App(){
           <div style={{display:"flex",alignItems:"center",gap:5,marginBottom:1}}>
           <div style={{fontSize:13,fontWeight:600,color:q.done?"#555":"#f0ece4",textDecoration:q.done?"line-through":"none",lineHeight:1.3,flex:1,wordBreak:"break-word",whiteSpace:"normal"}}>{q.name}</div>
             {q.todoistId&&<span style={{flexShrink:0,fontSize:9,background:"rgba(232,68,74,0.15)",border:"1px solid rgba(232,68,74,0.3)",borderRadius:8,padding:"1px 5px",color:"#e8444a"}}>TD</span>}
+            {q.carriedOver&&<span title="Перенесено з учора" style={{flexShrink:0,fontSize:9,background:"rgba(200,168,64,0.12)",border:"1px solid rgba(200,168,64,0.35)",borderRadius:8,padding:"1px 5px",color:"#c8a840"}}>↻</span>}
             {q.notionPageId&&<span style={{flexShrink:0,fontSize:9,background:"rgba(255,255,255,0.08)",border:"1px solid #333",borderRadius:8,padding:"1px 5px",color:"#888"}}>N</span>}
           </div>
         </div>
@@ -2445,6 +2462,13 @@ function App(){
             <span style={{fontSize:14}}>🗑</span>
             <span style={{fontSize:12,color:"#888"}}>Скасовано квестів:</span>
             <span style={{fontSize:13,fontWeight:700,color:"#e05555",marginLeft:"auto"}}>{nd.questsCancelled}</span>
+          </div>}
+
+          {/* Перенесені квести */}
+          {(nd.questsCarried||0)>0&&<div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px",background:"rgba(200,168,64,0.06)",border:"1px solid rgba(200,168,64,0.18)",borderRadius:8,marginBottom:10}}>
+            <span style={{fontSize:14}}>↻</span>
+            <span style={{fontSize:12,color:"#888"}}>Перенесено на сьогодні:</span>
+            <span style={{fontSize:13,fontWeight:700,color:"#c8a840",marginLeft:"auto"}}>{nd.questsCarried}</span>
           </div>}
 
           {/* Якщо нічого не виконано */}
