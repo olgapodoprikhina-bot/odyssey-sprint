@@ -504,6 +504,8 @@ function App(){
   const [notionDbId,setNotionDbId]=useState("");
   const [notionSaving,setNotionSaving]=useState(false);
   const [notionMsg,setNotionMsg]=useState("");
+  const [eventsDbSearching,setEventsDbSearching]=useState(false);
+  const [eventsDbResults,setEventsDbResults]=useState(null);
   const [tdToken,setTdToken]=useState("");
   const [tdProjects,setTdProjects]=useState({A:"",B:"",C:"",inbox:""});
   const [tdProjectList,setTdProjectList]=useState([]);
@@ -1486,7 +1488,7 @@ function App(){
     return r.json();
   };
 
-  const EVENTS_DB_ID="33189c4d446b44d280fa7c2b1e74e6a5";
+  const EVENTS_DB_ID=(g.notion?.eventsDbId||"33189c4d446b44d280fa7c2b1e74e6a5").replace(/-/g,"").trim();
   const getEventsDataSourceId=async(token)=>{
     if(g.notion?.eventsDsId) return g.notion.eventsDsId;
     try{
@@ -1581,6 +1583,28 @@ function App(){
     finally{setNotionSaving(false);}
   };
 
+  // Пошук бази даних "Події" через Notion Search API — щоб не гадати ID вручну
+  const searchEventsDb=async()=>{
+    const token=(notionToken||g.notion?.token||"").trim();
+    if(!token){toast_("Спочатку вкажи токен вище","#e05555");return;}
+    setEventsDbSearching(true);setEventsDbResults(null);
+    try{
+      const res=await notionFetch("/search",token,"POST",{filter:{value:"database",property:"object"},page_size:20});
+      if(res?.results){
+        const dbs=res.results.map(r=>({
+          id:r.id,
+          title:r.title?.map(t=>t.plain_text).join("")||"(без назви)",
+        }));
+        setEventsDbResults(dbs);
+        if(dbs.length===0) toast_("Notion: жодної бази не знайдено — перевір, чи додана інтеграція в Connections потрібної бази","#e0a555");
+      } else {
+        toast_("Notion пошук: "+(res?.message||res?.code||"помилка"),"#e05555");
+      }
+    }catch(e){
+      toast_("Notion пошук: "+e.message,"#e05555");
+    }
+    setEventsDbSearching(false);
+  };
   const testNotion=async()=>{
     const token=notionToken||g.notion?.token;
     if(!token){toast_("Вкажи токен","#e05555");return;}
@@ -2700,6 +2724,27 @@ function App(){
           toast_("✓ Notion збережено","#4ab870");
           setShowNotion(false);
         }} style={{...S.gold}}>💾 Зберегти</button>
+
+        {/* База подій для вечірніх записів */}
+        <div style={{background:"rgba(255,255,255,0.02)",border:"1px solid #1e2028",borderRadius:10,padding:"12px 14px"}}>
+          <div style={{fontSize:11,color:"#c8a840",fontWeight:700,marginBottom:6,fontFamily:"monospace",letterSpacing:"0.1em"}}>БАЗА ПОДІЙ (вечірні записи)</div>
+          <div style={{fontSize:11,color:"#555",marginBottom:10,lineHeight:1.5}}>Не потрібно шукати ID вручну — натисни «Знайти», обери базу зі списку.</div>
+          <input style={{...S.inp,fontFamily:"monospace",fontSize:11,marginBottom:8}} placeholder="ID бази подій (32 символи)"
+            value={g.notion?.eventsDbId||""}
+            onChange={e=>upd(p=>({...p,notion:{...p.notion,eventsDbId:e.target.value.replace(/-/g,"").trim(),eventsDsId:null}}))}/>
+          <button onClick={searchEventsDb} disabled={eventsDbSearching} style={{width:"100%",background:"rgba(74,143,212,0.1)",border:"1px solid rgba(74,143,212,0.3)",borderRadius:9,padding:"9px",color:"#4a8fd4",fontSize:12,fontWeight:600,marginBottom:8}}>
+            {eventsDbSearching?"⏳ Шукаю...":"🔍 Знайти базу за назвою"}
+          </button>
+          {eventsDbResults&&eventsDbResults.length>0&&<div style={{display:"flex",flexDirection:"column",gap:4}}>
+            {eventsDbResults.map(db=><button key={db.id} onClick={()=>{
+              upd(p=>({...p,notion:{...p.notion,eventsDbId:db.id.replace(/-/g,""),eventsDsId:null}}));
+              toast_("✓ Базу подій оновлено: "+db.title,"#4ab870");
+              setEventsDbResults(null);
+            }} style={{display:"block",width:"100%",textAlign:"left",background:"rgba(255,255,255,0.03)",border:"1px solid #2a2f3a",borderRadius:7,padding:"7px 10px",color:"#f0ece4",fontSize:12}}>
+              📗 {db.title||"(без назви)"}
+            </button>)}
+          </div>}
+        </div>
 
         {/* Notion project list */}
         <div style={{background:"rgba(255,255,255,0.02)",border:"1px solid #1e2028",borderRadius:10,padding:"12px 14px"}}>
