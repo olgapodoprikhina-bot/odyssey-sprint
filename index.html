@@ -1497,7 +1497,7 @@ function App(){
         return dsId;
       }
       console.warn("Notion getEventsDataSourceId: no data_sources in response",db);
-      toast_("Debug GET /databases: "+JSON.stringify(db).slice(0,180),"#e0a555");
+      toast_("Notion БД подій: "+(db?.status?"["+db.status+"] ":"")+(db?.message||db?.code||"немає data_sources у відповіді"),"#e0a555");
     }catch(e){
       console.warn("Notion getEventsDataSourceId error:",e);
       toast_("Debug GET /databases error: "+e.message,"#e0a555");
@@ -1526,8 +1526,8 @@ function App(){
         toast_("📓 Збережено в Notion","#4ab870");
         return true;
       }
-      const err=res?.message||res?.code||"невідома помилка";
-      toast_("Notion: "+err,"#e05555");
+      const err=res?.message||res?.code||JSON.stringify(res||{}).slice(0,200)||"невідома помилка";
+      toast_("Notion подія: "+(res?.status?"["+res.status+"] ":"")+err,"#e05555");
       console.warn("Notion events save error:",res);
       return false;
     }catch(e){
