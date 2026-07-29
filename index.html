@@ -105,11 +105,12 @@ const PROJECTS=[
 const bbToCard=bb=>{
   const n=parseInt(bb);
   if(isNaN(n)||n<0||n>100)return null;
-  if(n<=20)return{id:"dead",range:"0-20",  label:"Порожньо", emoji:"💀",mult:1,  color:"#e05555",bg:"#2a1515",modes:["save"]};
-  if(n<=40)return{id:"low", range:"21-40", label:"Мало",     emoji:"🔻",mult:1.2,color:"#d4804a",bg:"#2a1c10",modes:["save","normal"]};
-  if(n<=60)return{id:"mid", range:"41-60", label:"Норма",    emoji:"⚡",mult:1.5,color:"#c8a840",bg:"#252010",modes:["normal"]};
-  if(n<=80)return{id:"good",range:"61-80", label:"Заряджено",emoji:"🔷",mult:2,  color:"#4a8fd4",bg:"#101e2a",modes:["normal","hyper"]};
-  return        {id:"peak",range:"81-100",label:"Піковий",  emoji:"🌟",mult:3,  color:"#4ab870",bg:"#101e14",modes:["normal","hyper"]};
+  const withSave=modes=>modes.includes("save")?modes:["save",...modes];
+  if(n<=20)return{id:"dead",range:"0-20",  label:"Порожньо", emoji:"💀",mult:1,  color:"#e05555",bg:"#2a1515",modes:withSave(["save"])};
+  if(n<=40)return{id:"low", range:"21-40", label:"Мало",     emoji:"🔻",mult:1.2,color:"#d4804a",bg:"#2a1c10",modes:withSave(["save","normal"])};
+  if(n<=60)return{id:"mid", range:"41-60", label:"Норма",    emoji:"⚡",mult:1.5,color:"#c8a840",bg:"#252010",modes:withSave(["normal"])};
+  if(n<=80)return{id:"good",range:"61-80", label:"Заряджено",emoji:"🔷",mult:2,  color:"#4a8fd4",bg:"#101e2a",modes:withSave(["normal","hyper"])};
+  return        {id:"peak",range:"81-100",label:"Піковий",  emoji:"🌟",mult:3,  color:"#4ab870",bg:"#101e14",modes:withSave(["normal","hyper"])};
 };
 const ZONES=[
   {id:"red",   emoji:"🔴",label:"Червона",    mult:2.0,color:"#e05555"},
