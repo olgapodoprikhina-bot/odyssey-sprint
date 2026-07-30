@@ -4148,11 +4148,13 @@ function App(){
                   {done&&<span style={{color:"#fff"}}>✓</span>}
                 </div>
                 <span style={{flexShrink:0}}>{h.emoji}</span>
-                <div style={{flex:1}}>
+                <div style={{flex:1,minWidth:0}}>
                   <span style={{fontSize:11,fontWeight:700,color:done?h.color:h.color}}>{h.name}</span>
-                  {hdata.content&&<div style={{fontSize:11,color:"#666",marginTop:1}}>{hdata.content}</div>}
+                  {hdata.content&&<div style={{fontSize:11,color:"#666",marginTop:1,whiteSpace:"pre-wrap"}}>{hdata.content}</div>}
                   {!hdata.content&&<div style={{fontSize:11,color:"#333",fontStyle:"italic",marginTop:1}}>{h.desc}</div>}
                 </div>
+                {h.id==="habit"&&<button onClick={openBrochModal} title="Редагувати брочинання"
+                  style={{flexShrink:0,fontSize:11,background:"rgba(200,168,64,0.1)",border:"1px solid rgba(200,168,64,0.3)",borderRadius:6,padding:"3px 6px",color:"#c8a840"}}>✏️</button>}
                 <div style={{textAlign:"right",flexShrink:0}}>
                   {streak>=2&&<div style={{fontSize:10,color:"#e8a44a"}}>🔥{streak}</div>}
                   <span style={{fontSize:10,color:done?"#4ab870":"#555",fontFamily:"monospace"}}>{done?"✓":"+"+h.mana}</span>
@@ -4688,6 +4690,8 @@ function App(){
                 {content&&<div style={{fontSize:11,color:done?"#3a3a3a":"#666",marginTop:3,lineHeight:1.5,whiteSpace:"pre-wrap"}}>{content}</div>}
               </div>
               {streak>=2&&<span style={{fontSize:11,color:"#e8a44a",flexShrink:0}}>🔥{streak}</span>}
+              {h.id==="habit"&&<button onClick={openBrochModal} title="Редагувати брочинання"
+                style={{flexShrink:0,fontSize:11,background:"rgba(200,168,64,0.1)",border:"1px solid rgba(200,168,64,0.3)",borderRadius:6,padding:"3px 6px",color:"#c8a840"}}>✏️</button>}
               <span style={{fontFamily:"monospace",fontSize:11,color:done?"#4ab870":"#555",flexShrink:0}}>{done?"✓":"+"+h.mana}</span>
             </div>;
           })}
@@ -5008,35 +5012,37 @@ function App(){
           const done=g.dailyHabits.includes(h.id);
           const streak=(g.habitStreak||{})[h.id]||0;
           const hdata=g.habits?.[h.id]||{content:""};
-          return <button key={h.id} onClick={()=>done?undoHabit(h.id):doneHabit(h.id)}
-            style={{width:"100%",display:"flex",alignItems:"center",gap:12,padding:"12px 10px",borderRadius:10,
+          const rowStyle={width:"100%",display:"flex",alignItems:"center",gap:12,padding:"12px 10px",borderRadius:10,
               background:done?"rgba(74,184,112,0.08)":"rgba(255,255,255,0.02)",
               border:"1px solid "+(done?"rgba(74,184,112,0.3)":"#252a35"),
-              marginBottom:8,textAlign:"left",color:"#f0ece4",cursor:done?"default":"pointer",
-              transition:"all 0.2s"}}>
-            {/* Чекбокс */}
-            <div style={{width:28,height:28,borderRadius:"50%",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",
-              background:done?h.color:"transparent",border:"2px solid "+(done?h.color:"#333"),transition:"all 0.2s"}}>
-              {done&&<span style={{color:"#fff",fontSize:14}}>✓</span>}
-            </div>
-            {/* Інфо */}
-            <div style={{flex:1}}>
-              <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:2}}>
-                <span style={{fontSize:14}}>{h.emoji}</span>
-                <span style={{fontSize:13,fontWeight:700,color:done?h.color:"#f0ece4"}}>{h.name}</span>
+              marginBottom:8,textAlign:"left",color:"#f0ece4",
+              transition:"all 0.2s"};
+          const inner=<>
+            <div onClick={()=>done?undoHabit(h.id):doneHabit(h.id)} style={{display:"flex",alignItems:"center",gap:12,flex:1,cursor:done?"default":"pointer",minWidth:0}}>
+              <div style={{width:28,height:28,borderRadius:"50%",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",
+                background:done?h.color:"transparent",border:"2px solid "+(done?h.color:"#333"),transition:"all 0.2s"}}>
+                {done&&<span style={{color:"#fff",fontSize:14}}>✓</span>}
               </div>
-              {hdata.content
-                ?<div style={{fontSize:11,color:"#666"}}>{hdata.content}</div>
-                :<div style={{fontSize:11,color:"#333",fontStyle:"italic"}}>{h.desc}</div>}
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:2}}>
+                  <span style={{fontSize:14}}>{h.emoji}</span>
+                  <span style={{fontSize:13,fontWeight:700,color:done?h.color:"#f0ece4"}}>{h.name}</span>
+                </div>
+                {hdata.content
+                  ?<div style={{fontSize:11,color:"#666",whiteSpace:"pre-wrap"}}>{hdata.content}</div>
+                  :<div style={{fontSize:11,color:"#333",fontStyle:"italic"}}>{h.desc}</div>}
+              </div>
             </div>
-            {/* Streak + мана */}
+            {h.id==="habit"&&<button onClick={(e)=>{e.stopPropagation();openBrochModal();}} title="Редагувати брочинання"
+              style={{flexShrink:0,fontSize:13,background:"rgba(200,168,64,0.1)",border:"1px solid rgba(200,168,64,0.3)",borderRadius:8,padding:"5px 7px",color:"#c8a840"}}>✏️</button>}
             <div style={{textAlign:"right",flexShrink:0}}>
               {streak>=2&&<div style={{fontSize:11,color:"#e8a44a",fontWeight:700,marginBottom:2}}>🔥{streak}</div>}
               <div style={{fontFamily:"monospace",fontSize:11,color:done?"#4ab870":"#555"}}>
                 {done?"✓":"+"+h.mana}
               </div>
             </div>
-          </button>;
+          </>;
+          return <div key={h.id} style={rowStyle}>{inner}</div>;
         })}
       </div>
 
