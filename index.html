@@ -526,6 +526,9 @@ function App(){
   // Home screen collapsible sections
   const [homeOpen,setHomeOpen]=useState({sprint:true,time:false,spoons:false,constants:false,stats:false,day:false,break:false,tomorrow:false,nav:false,sprintTab:"calendar"});
   const [showCourseModal,setShowCourseModal]=useState(false);
+  const [showConstModal,setShowConstModal]=useState(false);
+  const [constModalQ,setConstModalQ]=useState(null);
+  const [constTarget,setConstTarget]=useState("");
   const [courseForm,setCourseForm]=useState({name:"",days:"",startDate:new Date().toISOString().slice(0,10)});
   const [courseStep,setCourseStep]=useState(0); // 0 = основні поля, 1..6 = кроки каркасу
   const [coursePlan,setCoursePlan]=useState(freshCoursePlan());
@@ -1136,18 +1139,29 @@ function App(){
   };
   const addSprintConst=q=>{
     if((g.sprintConstants||[]).find(c=>c.name===q.name&&c.active))return toast_("Вже є в константах","#c8a840");
-    const sc={id:Date.now(),name:q.name,projId:q.projId||null,zone:q.zone||"green",count:0,streak:0,lastDate:null,active:true};
+    setConstModalQ(q);setConstTarget("");setShowConstModal(true);
+  };
+  const submitConstModal_=()=>{
+    const q=constModalQ;
+    if(!q)return;
+    const target=constTarget.trim()?parseInt(constTarget):null;
+    if(constTarget.trim()&&(isNaN(target)||target<1))return toast_("Кількість має бути числом більше 0","#e05555");
+    const sc={id:Date.now(),name:q.name,projId:q.projId||null,zone:q.zone||"green",count:0,streak:0,lastDate:null,active:true,target:target||null};
     upd(p=>({...p,sprintConstants:[...(p.sprintConstants||[]),sc]}));
-    toast_("🔁 Додано як константу спринту","#c8a840");
+    toast_(target?"🔁 Додано як константу · ціль "+target+"×":"🔁 Додано як константу спринту","#c8a840");
+    setShowConstModal(false);setConstModalQ(null);setConstTarget("");
   };
   const doneSprintConst=id=>{
     const today=new Date().toISOString().slice(0,10);
+    let hitTarget=false;
     upd(p=>({...p,sprintConstants:(p.sprintConstants||[]).map(c=>{
       if(c.id!==id)return c;
       const streak=c.lastDate===new Date(Date.now()-86400000).toISOString().slice(0,10)?c.streak+1:c.lastDate===today?c.streak:1;
-      return {...c,count:c.count+1,streak,lastDate:today};
+      const newCount=c.count+1;
+      if(c.target&&newCount>=c.target&&c.count<c.target)hitTarget=true;
+      return {...c,count:newCount,streak,lastDate:today};
     })}));
-    toast_("🔁 +1 виконання","#c8a840");
+    toast_(hitTarget?"🎉 Ціль досягнута!":"🔁 +1 виконання","#c8a840");
   };
   const closeSprintConst=id=>{
     upd(p=>({...p,sprintConstants:(p.sprintConstants||[]).map(c=>c.id===id?{...c,active:false}:c)}));
@@ -2008,6 +2022,31 @@ function App(){
 
   return <div style={{minHeight:"100vh",background:"#0d0f14",color:"#f0ece4",fontFamily:"system-ui,sans-serif",display:"flex",flexDirection:"column",maxWidth:500,margin:"0 auto"}}>
     {toast&&<div style={{position:"fixed",top:10,left:"50%",transform:"translateX(-50%)",padding:"9px 16px",borderRadius:20,background:toast.color,color:"#fff",fontSize:13,fontWeight:700,zIndex:9999,whiteSpace:"nowrap",maxWidth:"92%",textAlign:"center",boxShadow:"0 4px 20px #0008"}}>{toast.msg}</div>}
+
+    {/* ── Модалка: Додати константу спринту (з ціллю повторень) ── */}
+    {showConstModal&&constModalQ&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:10000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+      <div style={{background:"#161921",border:"1px solid #252a35",borderRadius:16,padding:24,width:"100%",maxWidth:380}}>
+        <div style={{fontFamily:"monospace",fontSize:11,letterSpacing:"0.15em",color:"#c8a840",textTransform:"uppercase",marginBottom:16}}>🔁 Нова константа</div>
+        <div style={{fontSize:13,color:"#f0ece4",fontWeight:600,marginBottom:14}}>{constModalQ.name}</div>
+        <div style={{marginBottom:16}}>
+          <div style={{fontSize:11,color:"#888",marginBottom:4}}>Скільки разів повториться? (необов&#39;язково)</div>
+          <input type="number" min="1" value={constTarget} onChange={e=>setConstTarget(e.target.value)}
+            placeholder="Без ліміту — просто рахувати серію"
+            style={{width:"100%",background:"#0d0f14",border:"1px solid #252a35",borderRadius:8,padding:"9px 11px",color:"#f0ece4",fontSize:13}}/>
+          <div style={{fontSize:10,color:"#444",marginTop:5,lineHeight:1.4}}>Залиш порожнім, якщо константа безстрокова — тоді рахуватиметься лише серія виконань поспіль.</div>
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={()=>{setShowConstModal(false);setConstModalQ(null);setConstTarget("");}}
+            style={{flex:1,padding:"11px",background:"transparent",border:"1px solid #252a35",borderRadius:10,color:"#555",fontSize:13,cursor:"pointer"}}>
+            Скасувати
+          </button>
+          <button onClick={submitConstModal_}
+            style={{flex:1,padding:"11px",background:"linear-gradient(135deg,#c8a840,#b8983a)",border:"none",borderRadius:10,color:"#161921",fontSize:13,fontWeight:700,cursor:"pointer"}}>
+            ✓ Додати
+          </button>
+        </div>
+      </div>
+    </div>}
 
     {/* ── Модалка: Додати курс ── */}
     {showCourseModal&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:10000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
@@ -4920,7 +4959,8 @@ function App(){
                       <div style={{fontSize:10,color:"#555",marginTop:3}}>🔥 {c.streak} підряд · {c.count} разів виконано</div>
                     </div>
                     :<div style={{fontSize:11,color:"#555",marginTop:2}}>
-                      🔥 {c.streak} серія · {c.count} разів всього
+                      🔥 {c.streak} серія · {c.count}{c.target?"/"+c.target:""} раз{c.target?"":"ів всього"}
+                      {c.target&&c.count>=c.target&&<span style={{marginLeft:6,color:"#4ab870",fontWeight:700}}>✓ ціль досягнута</span>}
                       {c.projId&&<span style={{marginLeft:6,color:PROJECTS.find(p=>p.id===c.projId)?.color||"#555"}}>{PROJECTS.find(p=>p.id===c.projId)?.emoji} {c.projId}</span>}
                     </div>
                   }
