@@ -527,6 +527,44 @@ function App(){
   // Home screen collapsible sections
   const [homeOpen,setHomeOpen]=useState({sprint:true,time:false,spoons:false,constants:false,stats:false,day:false,break:false,tomorrow:false,nav:false,sprintTab:"calendar"});
   const [showCourseModal,setShowCourseModal]=useState(false);
+  const [showBrochModal,setShowBrochModal]=useState(false);
+  const [brochStep,setBrochStep]=useState(0);
+  const [brochForm,setBrochForm]=useState(null);
+  const brochField=(k,v)=>setBrochForm(p=>({...p,[k]:v}));
+  const midWeekDate=()=>{
+    const d=new Date();
+    const day=d.getDay(); // 0=нд,1=пн...3=ср
+    const diff=((3-day)+7)%7; // до найближчої середи
+    d.setDate(d.getDate()+diff);
+    return d.toISOString().slice(0,10);
+  };
+  const openBrochModal=()=>{
+    const saved=g.brochPlan;
+    setBrochForm(saved?{...saved}:{
+      name:"",duration:"",anchor:"",
+      measureType:"дні поспіль",minAmt:"",maxAmt:"",
+      place:"",timeTrigger:"",reminderIcon:"",
+      triggers:"",mantra:"",exceptionsCount:"",
+      testDrive:true,startDate:midWeekDate(),
+      reward:"",pleasureRitual:"",
+    });
+    setBrochStep(0);setShowBrochModal(true);
+  };
+  const submitBrochModal_=()=>{
+    const f=brochForm;
+    if(!f.name.trim())return toast_("Вкажи назву звички","#e05555");
+    const lines=[];
+    if(f.timeTrigger||f.place) lines.push("📍 "+[f.timeTrigger,f.place].filter(Boolean).join(" · "));
+    if(f.minAmt||f.maxAmt) lines.push("Вилка ("+f.measureType+"): "+(f.minAmt||"?")+"–"+(f.maxAmt||"?"));
+    if(f.anchor) lines.push("Навіщо: "+f.anchor);
+    if(f.mantra) lines.push("Код: «"+f.mantra+"»");
+    if(f.duration) lines.push("Термін: "+f.duration);
+    if(f.testDrive) lines.push("🧪 Пробний період 3 дні · старт "+f.startDate);
+    const content=(f.name+(lines.length?"\n"+lines.join("\n"):"")).trim();
+    upd(p=>({...p,habits:{...(p.habits||{}),habit:{content,note:""}},brochPlan:{...f}}));
+    toast_("📋 Брочинання налаштовано","#c8a840");
+    setShowBrochModal(false);
+  };
   const [showConstModal,setShowConstModal]=useState(false);
   const [constModalQ,setConstModalQ]=useState(null);
   const [constTarget,setConstTarget]=useState("");
@@ -1214,6 +1252,9 @@ function App(){
       streaks[hid]=yesterdayDone?(streaks[hid]||0)+1:1;
       return{...p,mana:p.mana+h.mana,dailyHabits:[...p.dailyHabits,hid],habitHistory:hist,habitStreak:streaks};
     });
+    if(hid==="habit"&&g.brochPlan?.testDrive){
+      toast_("⏱ Правило 5 секунд — не думай, просто роби","#c8a840");
+    }
     // Записати в Notion Log
     const nToken=g.notion?.token||notionToken;
     if(nToken){
@@ -2038,6 +2079,135 @@ function App(){
 
   return <div style={{minHeight:"100vh",background:"#0d0f14",color:"#f0ece4",fontFamily:"system-ui,sans-serif",display:"flex",flexDirection:"column",maxWidth:500,margin:"0 auto"}}>
     {toast&&<div style={{position:"fixed",top:10,left:"50%",transform:"translateX(-50%)",padding:"9px 16px",borderRadius:20,background:toast.color,color:"#fff",fontSize:13,fontWeight:700,zIndex:9999,whiteSpace:"nowrap",maxWidth:"92%",textAlign:"center",boxShadow:"0 4px 20px #0008"}}>{toast.msg}</div>}
+
+    {/* ── Модалка: Візард "Брочинання" (впровадження звички) ── */}
+    {showBrochModal&&brochForm&&(()=>{
+      const steps=["Що і навіщо","Прогрес","Де і коли","Слабкі місця","Старт"];
+      const f=brochForm;
+      const isLast=brochStep===steps.length-1;
+      const canNext=brochStep>0||f.name.trim();
+      return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:10000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+        <div style={{background:"#161921",border:"1px solid #252a35",borderRadius:16,padding:24,width:"100%",maxWidth:420,maxHeight:"85vh",overflowY:"auto"}}>
+          <div style={{display:"flex",gap:4,marginBottom:14}}>
+            {steps.map((s,i)=><div key={i} style={{flex:1,height:3,borderRadius:2,background:i<=brochStep?"#c8a840":"#252a35"}}/>)}
+          </div>
+          <div style={{fontFamily:"monospace",fontSize:11,letterSpacing:"0.15em",color:"#c8a840",textTransform:"uppercase",marginBottom:16}}>
+            📋 Брочинання · {brochStep+1}/{steps.length} · {steps[brochStep]}
+          </div>
+
+          {brochStep===0&&<>
+            <div style={{marginBottom:14}}>
+              <div style={{fontSize:11,color:"#888",marginBottom:4}}>Назва звички (одна, конкретна)</div>
+              <input value={f.name} onChange={e=>brochField("name",e.target.value)} placeholder="Наприклад: 10 хв медитації щоранку"
+                style={{width:"100%",background:"#0d0f14",border:"1px solid #252a35",borderRadius:8,padding:"9px 11px",color:"#f0ece4",fontSize:13}}/>
+            </div>
+            <div style={{marginBottom:14}}>
+              <div style={{fontSize:11,color:"#888",marginBottom:4}}>Термін: «роблю X днів/місяців»</div>
+              <input value={f.duration} onChange={e=>brochField("duration",e.target.value)} placeholder="Наприклад: 3 місяці"
+                style={{width:"100%",background:"#0d0f14",border:"1px solid #252a35",borderRadius:8,padding:"9px 11px",color:"#f0ece4",fontSize:13}}/>
+            </div>
+            <div>
+              <div style={{fontSize:11,color:"#888",marginBottom:4}}>Що зміниться в житті, коли вийде? (конкретна картинка, не «корисно»)</div>
+              <textarea value={f.anchor} onChange={e=>brochField("anchor",e.target.value)} placeholder="Наприклад: влізу в ті самі джинси"
+                rows={2} style={{width:"100%",background:"#0d0f14",border:"1px solid #252a35",borderRadius:8,padding:"9px 11px",color:"#f0ece4",fontSize:13,fontFamily:"inherit",resize:"vertical"}}/>
+            </div>
+          </>}
+
+          {brochStep===1&&<>
+            <div style={{marginBottom:14}}>
+              <div style={{fontSize:11,color:"#888",marginBottom:4}}>Що рахуємо?</div>
+              <div style={{display:"flex",gap:6}}>
+                {["дні поспіль","кількість","час"].map(opt=><button key={opt} onClick={()=>brochField("measureType",opt)}
+                  style={{flex:1,padding:"8px",borderRadius:8,fontSize:11,background:f.measureType===opt?"rgba(200,168,64,0.15)":"transparent",border:"1px solid "+(f.measureType===opt?"#c8a840":"#252a35"),color:f.measureType===opt?"#c8a840":"#666"}}>{opt}</button>)}
+              </div>
+            </div>
+            <div style={{fontSize:11,color:"#888",marginBottom:4}}>Вилка навантаження (мін–макс, щоб не вимагати максимуму щодня)</div>
+            <div style={{display:"flex",gap:8}}>
+              <input value={f.minAmt} onChange={e=>brochField("minAmt",e.target.value)} placeholder="мін (напр. 15)"
+                style={{flex:1,background:"#0d0f14",border:"1px solid #252a35",borderRadius:8,padding:"9px 11px",color:"#f0ece4",fontSize:13}}/>
+              <input value={f.maxAmt} onChange={e=>brochField("maxAmt",e.target.value)} placeholder="макс (напр. 45)"
+                style={{flex:1,background:"#0d0f14",border:"1px solid #252a35",borderRadius:8,padding:"9px 11px",color:"#f0ece4",fontSize:13}}/>
+            </div>
+          </>}
+
+          {brochStep===2&&<>
+            <div style={{marginBottom:14}}>
+              <div style={{fontSize:11,color:"#888",marginBottom:4}}>Місце</div>
+              <input value={f.place} onChange={e=>brochField("place",e.target.value)} placeholder="Наприклад: кухня, килимок у залі"
+                style={{width:"100%",background:"#0d0f14",border:"1px solid #252a35",borderRadius:8,padding:"9px 11px",color:"#f0ece4",fontSize:13}}/>
+            </div>
+            <div style={{marginBottom:14}}>
+              <div style={{fontSize:11,color:"#888",marginBottom:4}}>Час / тригер-подія</div>
+              <input value={f.timeTrigger} onChange={e=>brochField("timeTrigger",e.target.value)} placeholder="Наприклад: після сніданку, перед сном"
+                style={{width:"100%",background:"#0d0f14",border:"1px solid #252a35",borderRadius:8,padding:"9px 11px",color:"#f0ece4",fontSize:13}}/>
+            </div>
+            <div>
+              <div style={{fontSize:11,color:"#888",marginBottom:4}}>Візуальне нагадування (іконка/колір, необов&#39;язково)</div>
+              <input value={f.reminderIcon} onChange={e=>brochField("reminderIcon",e.target.value)} placeholder="Наприклад: 🟡 або жовтий стікер"
+                style={{width:"100%",background:"#0d0f14",border:"1px solid #252a35",borderRadius:8,padding:"9px 11px",color:"#f0ece4",fontSize:13}}/>
+            </div>
+          </>}
+
+          {brochStep===3&&<>
+            <div style={{marginBottom:14}}>
+              <div style={{fontSize:11,color:"#888",marginBottom:4}}>1–3 ситуації, де можеш зірватись → яке рішення (по одній в рядку)</div>
+              <textarea value={f.triggers} onChange={e=>brochField("triggers",e.target.value)} placeholder={"Гості → вибачусь на 10 хв\nСтрес на роботі → перенесу на вечір, не скасую"}
+                rows={3} style={{width:"100%",background:"#0d0f14",border:"1px solid #252a35",borderRadius:8,padding:"9px 11px",color:"#f0ece4",fontSize:13,fontFamily:"inherit",resize:"vertical"}}/>
+            </div>
+            <div style={{marginBottom:14}}>
+              <div style={{fontSize:11,color:"#888",marginBottom:4}}>Мантра-фраза (необов&#39;язково, один рядок)</div>
+              <input value={f.mantra} onChange={e=>brochField("mantra",e.target.value)} placeholder="Наприклад: пішли поженим кістки з м'язами"
+                style={{width:"100%",background:"#0d0f14",border:"1px solid #252a35",borderRadius:8,padding:"9px 11px",color:"#f0ece4",fontSize:13}}/>
+            </div>
+            <div>
+              <div style={{fontSize:11,color:"#888",marginBottom:4}}>Скільки «легальних» пропусків дозволено?</div>
+              <input type="number" min="0" value={f.exceptionsCount} onChange={e=>brochField("exceptionsCount",e.target.value)} placeholder="Наприклад: 2"
+                style={{width:"100%",background:"#0d0f14",border:"1px solid #252a35",borderRadius:8,padding:"9px 11px",color:"#f0ece4",fontSize:13}}/>
+            </div>
+          </>}
+
+          {brochStep===4&&<>
+            <div onClick={()=>brochField("testDrive",!f.testDrive)} style={{display:"flex",alignItems:"center",gap:10,marginBottom:14,cursor:"pointer",background:"rgba(255,255,255,0.03)",border:"1px solid #252a35",borderRadius:8,padding:"10px 12px"}}>
+              <div style={{width:20,height:20,borderRadius:5,flexShrink:0,background:f.testDrive?"#c8a840":"transparent",border:"2px solid "+(f.testDrive?"#c8a840":"#444"),display:"flex",alignItems:"center",justifyContent:"center",fontSize:12}}>{f.testDrive&&"✓"}</div>
+              <div style={{fontSize:12,color:"#ccc"}}>🧪 Пробний період 3 дні — потім можна скоригувати вилку і час</div>
+            </div>
+            <div style={{marginBottom:16}}>
+              <div style={{fontSize:11,color:"#888",marginBottom:4}}>Дата старту (підказка: середина тижня)</div>
+              <input type="date" value={f.startDate} onChange={e=>brochField("startDate",e.target.value)}
+                style={{width:"100%",background:"#0d0f14",border:"1px solid #252a35",borderRadius:8,padding:"9px 11px",color:"#f0ece4",fontSize:13}}/>
+            </div>
+            <div style={{background:"rgba(200,168,64,0.06)",border:"1px solid rgba(200,168,64,0.2)",borderRadius:8,padding:"10px 12px",fontSize:11,color:"#888",lineHeight:1.5,marginBottom:16}}>
+              ⏱ Правило 5 секунд: коли відмічаєш день — не думай, просто роби. Якщо зʼявився сумнів «а може пропущу» — рахуй до 5 і починай.
+            </div>
+            <details style={{marginBottom:4}}>
+              <summary style={{fontSize:11,color:"#4a8fd4",cursor:"pointer"}}>+ Бонусні поля (нагорода, ритуал задоволення)</summary>
+              <div style={{marginTop:10}}>
+                <div style={{fontSize:11,color:"#888",marginBottom:4}}>Нагорода за успіх (напр. відкладаю гроші на щось велике)</div>
+                <input value={f.reward} onChange={e=>brochField("reward",e.target.value)} placeholder="Наприклад: 20 грн у банку за кожен вдалий день"
+                  style={{width:"100%",background:"#0d0f14",border:"1px solid #252a35",borderRadius:8,padding:"9px 11px",color:"#f0ece4",fontSize:13,marginBottom:10}}/>
+                <div style={{fontSize:11,color:"#888",marginBottom:4}}>Ритуал задоволення під час виконання</div>
+                <input value={f.pleasureRitual} onChange={e=>brochField("pleasureRitual",e.target.value)} placeholder="Наприклад: улюблена музика, ароматична свічка"
+                  style={{width:"100%",background:"#0d0f14",border:"1px solid #252a35",borderRadius:8,padding:"9px 11px",color:"#f0ece4",fontSize:13}}/>
+              </div>
+            </details>
+          </>}
+
+          <div style={{display:"flex",gap:8,marginTop:18}}>
+            {brochStep>0&&<button onClick={()=>setBrochStep(s=>s-1)}
+              style={{padding:"11px 16px",background:"transparent",border:"1px solid #252a35",borderRadius:10,color:"#666",fontSize:13}}>← Назад</button>}
+            <button onClick={()=>{setShowBrochModal(false);}}
+              style={{padding:"11px 16px",background:"transparent",border:"1px solid #252a35",borderRadius:10,color:"#444",fontSize:12}}>Скасувати</button>
+            <div style={{flex:1}}/>
+            {brochStep>0&&!isLast&&<button onClick={()=>setBrochStep(s=>s+1)}
+              style={{padding:"11px 16px",background:"transparent",border:"1px solid #333",borderRadius:10,color:"#555",fontSize:12}}>Пропустити</button>}
+            {!isLast&&<button disabled={!canNext} onClick={()=>{if(brochStep===0&&!f.name.trim())return toast_("Вкажи назву звички","#e05555");setBrochStep(s=>s+1);}}
+              style={{padding:"11px 18px",background:canNext?"linear-gradient(135deg,#c8a840,#b8983a)":"#252a35",border:"none",borderRadius:10,color:canNext?"#161921":"#555",fontSize:13,fontWeight:700}}>Далі →</button>}
+            {isLast&&<button onClick={submitBrochModal_}
+              style={{padding:"11px 18px",background:"linear-gradient(135deg,#c8a840,#b8983a)",border:"none",borderRadius:10,color:"#161921",fontSize:13,fontWeight:700}}>✓ Завершити</button>}
+          </div>
+        </div>
+      </div>;
+    })()}
 
     {/* ── Модалка: Додати константу спринту (з ціллю повторень) ── */}
     {showConstModal&&constModalQ&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:10000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
@@ -4248,6 +4418,26 @@ function App(){
       </div>
 
       {HABITS.map(h=>{
+        if(h.id==="habit"){
+          const plan=g.brochPlan;
+          const content=(g.habits?.habit?.content||"").trim();
+          return <div key={h.id} style={{background:"#161921",border:"1px solid "+h.color+"44",borderRadius:12,padding:"14px 16px"}}>
+            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+              <span style={{fontSize:24}}>{h.emoji}</span>
+              <div>
+                <div style={{fontSize:14,fontWeight:700,color:h.color}}>{h.name}</div>
+                <div style={{fontSize:11,color:"#555"}}>{h.desc} · <span style={{color:"#c8a840"}}>+{h.mana} мани/день</span></div>
+              </div>
+            </div>
+            {content
+              ?<div style={{background:"rgba(255,255,255,0.03)",border:"1px solid #222",borderRadius:8,padding:"10px 12px",fontSize:12,color:"#aaa",whiteSpace:"pre-wrap",marginBottom:8,lineHeight:1.5}}>{content}</div>
+              :<div style={{fontSize:11,color:"#444",marginBottom:8}}>Ще не налаштовано — пройди коротке опитування за системою брочинання.</div>
+            }
+            <button onClick={openBrochModal} style={{width:"100%",background:"rgba(200,168,64,0.1)",border:"1px solid rgba(200,168,64,0.3)",borderRadius:8,padding:"10px",color:"#c8a840",fontSize:12,fontWeight:600}}>
+              {plan?"✏️ Редагувати брочинання":"📋 Налаштувати за системою брочинання"}
+            </button>
+          </div>;
+        }
         return <div key={h.id} style={{background:"#161921",border:"1px solid "+h.color+"44",borderRadius:12,padding:"14px 16px"}}>
           <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
             <span style={{fontSize:24}}>{h.emoji}</span>
@@ -4284,9 +4474,9 @@ function App(){
       <div style={{display:"flex",gap:10}}>
         <button onClick={()=>{setPlanPhase("quests");setPlanProjId("C");setPlanQWeek(3);}} style={{flex:1,background:"transparent",border:"1px solid #333",borderRadius:8,padding:"11px",color:"#777",fontSize:13}}>← Назад</button>
         <button onClick={()=>{
-          // Save habit drafts
+          // Save habit drafts (Броунінг налаштовується окремо через візард брочинання)
           upd(prev=>({...prev,habits:{
-            habit:  {content:habitDraft.habit,  note:""},
+            ...(prev.habits||{}),
             morning:{content:habitDraft.morning, note:""},
             evening:{content:habitDraft.evening, note:""},
           }}));
