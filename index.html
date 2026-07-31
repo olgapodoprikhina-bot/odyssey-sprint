@@ -530,7 +530,11 @@ function App(){
   const [showBrochModal,setShowBrochModal]=useState(false);
   const [brochStep,setBrochStep]=useState(0);
   const [brochForm,setBrochForm]=useState(null);
-  const [brochContext,setBrochContext]=useState(null); // {type:"habit"} | {type:"newConst",projId,zone,name} | {type:"editConst",id}
+  const [brochContext,setBrochContext]=useState(null);
+  const [showPilotModal,setShowPilotModal]=useState(false);
+  const [pilotCtx,setPilotCtx]=useState(null); // {type:"habit"} | {type:"const",id}
+  const [pilotDay,setPilotDay]=useState(1);
+  const [pilotNote,setPilotNote]=useState("");
   const brochField=(k,v)=>setBrochForm(p=>({...p,[k]:v}));
   const midWeekDate=()=>{
     const d=new Date();
@@ -1236,6 +1240,37 @@ function App(){
     setShowConstModal(false);setConstModalQ(null);setConstTarget("");
     openBrochModal({type:"newConst",projId:q.projId||null,zone:q.zone||"green",name:q.name});
   };
+  const pilotDayFor=startDate=>{
+    if(!startDate)return null;
+    const start=new Date(startDate+"T00:00:00");
+    const today=new Date(new Date().toISOString().slice(0,10)+"T00:00:00");
+    const diff=Math.floor((today-start)/86400000)+1;
+    return diff;
+  };
+  const maybeOpenPilot=(ctx,plan)=>{
+    if(!plan?.testDrive||!plan?.startDate)return;
+    const day=pilotDayFor(plan.startDate);
+    if(day<1||day>3)return;
+    const today=new Date().toISOString().slice(0,10);
+    const alreadyLogged=(plan.pilotLog||[]).some(l=>l.date===today);
+    if(alreadyLogged)return;
+    setPilotCtx(ctx);setPilotDay(day);setPilotNote("");setShowPilotModal(true);
+  };
+  const submitPilotFeedback_=()=>{
+    const ctx=pilotCtx,today=new Date().toISOString().slice(0,10);
+    const entry={day:pilotDay,date:today,note:pilotNote.trim()};
+    if(ctx?.type==="habit"){
+      upd(p=>({...p,brochPlan:{...(p.brochPlan||{}),pilotLog:[...((p.brochPlan||{}).pilotLog||[]),entry]}}));
+    } else if(ctx?.type==="const"){
+      upd(p=>({...p,sprintConstants:(p.sprintConstants||[]).map(c=>c.id===ctx.id?{...c,brochPlan:{...(c.brochPlan||{}),pilotLog:[...((c.brochPlan||{}).pilotLog||[]),entry]}}:c)}));
+    }
+    setShowPilotModal(false);
+    if(pilotDay>=3){
+      toast_("🧪 Тест-драйв завершено! Переглянь нотатки й скоригуй вилку/час у кроках 2-3","#4ab870");
+    } else {
+      toast_("📝 День "+pilotDay+"/3 записано","#c8a840");
+    }
+  };
   const doneSprintConst=id=>{
     const today=new Date().toISOString().slice(0,10);
     let hitTarget=false;
@@ -1247,6 +1282,8 @@ function App(){
       return {...c,count:newCount,streak,lastDate:today};
     })}));
     toast_(hitTarget?"🎉 Ціль досягнута!":"🔁 +1 виконання","#c8a840");
+    const c=(g.sprintConstants||[]).find(x=>x.id===id);
+    if(c?.brochPlan)maybeOpenPilot({type:"const",id},c.brochPlan);
   };
   const closeSprintConst=id=>{
     upd(p=>({...p,sprintConstants:(p.sprintConstants||[]).map(c=>c.id===id?{...c,active:false}:c)}));
@@ -1285,7 +1322,7 @@ function App(){
       return{...p,mana:p.mana+h.mana,dailyHabits:[...p.dailyHabits,hid],habitHistory:hist,habitStreak:streaks};
     });
     if(hid==="habit"&&g.brochPlan?.testDrive){
-      toast_("⏱ Правило 5 секунд — не думай, просто роби","#c8a840");
+      maybeOpenPilot({type:"habit"},g.brochPlan);
     }
     // Записати в Notion Log
     const nToken=g.notion?.token||notionToken;
@@ -2112,6 +2149,31 @@ function App(){
   return <div style={{minHeight:"100vh",background:"#0d0f14",color:"#f0ece4",fontFamily:"system-ui,sans-serif",display:"flex",flexDirection:"column",maxWidth:500,margin:"0 auto"}}>
     {toast&&<div style={{position:"fixed",top:10,left:"50%",transform:"translateX(-50%)",padding:"9px 16px",borderRadius:20,background:toast.color,color:"#fff",fontSize:13,fontWeight:700,zIndex:9999,whiteSpace:"nowrap",maxWidth:"92%",textAlign:"center",boxShadow:"0 4px 20px #0008"}}>{toast.msg}</div>}
 
+    {/* ── Модалка: Обратній зв'язок пілотного дня брочинання ── */}
+    {showPilotModal&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:10001,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+      <div style={{background:"#161921",border:"1px solid #252a35",borderRadius:16,padding:24,width:"100%",maxWidth:380}}>
+        <div style={{fontFamily:"monospace",fontSize:11,letterSpacing:"0.15em",color:"#4ab870",textTransform:"uppercase",marginBottom:10}}>🧪 Пілотний день {pilotDay}/3</div>
+        <div style={{fontSize:12,color:"#aaa",marginBottom:14,lineHeight:1.5}}>Мета тест-драйву — не ідеальний результат, а зрозуміти, що заважає. Що помітила сьогодні?</div>
+        <textarea value={pilotNote} onChange={e=>setPilotNote(e.target.value)}
+          placeholder="Наприклад: важко вставати на 15 хв раніше, зручніше після кави, а не до"
+          rows={3} autoFocus
+          style={{width:"100%",background:"#0d0f14",border:"1px solid #252a35",borderRadius:8,padding:"9px 11px",color:"#f0ece4",fontSize:13,fontFamily:"inherit",resize:"vertical",marginBottom:16}}/>
+        {pilotDay>=3&&<div style={{background:"rgba(74,184,112,0.06)",border:"1px solid rgba(74,184,112,0.2)",borderRadius:8,padding:"9px 11px",fontSize:11,color:"#888",marginBottom:16,lineHeight:1.4}}>
+          Це останній пілотний день — після збереження зможеш переглянути всі три нотатки й скоригувати вилку/час.
+        </div>}
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={()=>setShowPilotModal(false)}
+            style={{flex:1,padding:"11px",background:"transparent",border:"1px solid #252a35",borderRadius:10,color:"#555",fontSize:13}}>
+            Пропустити
+          </button>
+          <button onClick={submitPilotFeedback_}
+            style={{flex:1,padding:"11px",background:"linear-gradient(135deg,#4ab870,#3aa860)",border:"none",borderRadius:10,color:"#0d0f14",fontSize:13,fontWeight:700}}>
+            ✓ Зберегти
+          </button>
+        </div>
+      </div>
+    </div>}
+
     {/* ── Модалка: Візард "Брочинання" (впровадження звички) ── */}
     {showBrochModal&&brochForm&&(()=>{
       const steps=["Що і навіщо","Прогрес","Де і коли","Слабкі місця","Старт"];
@@ -2211,6 +2273,12 @@ function App(){
             <div style={{background:"rgba(200,168,64,0.06)",border:"1px solid rgba(200,168,64,0.2)",borderRadius:8,padding:"10px 12px",fontSize:11,color:"#888",lineHeight:1.5,marginBottom:16}}>
               ⏱ Правило 5 секунд: коли відмічаєш день — не думай, просто роби. Якщо зʼявився сумнів «а може пропущу» — рахуй до 5 і починай.
             </div>
+            {(f.pilotLog||[]).length>0&&<div style={{background:"rgba(74,184,112,0.05)",border:"1px solid rgba(74,184,112,0.2)",borderRadius:8,padding:"10px 12px",marginBottom:16}}>
+              <div style={{fontSize:11,color:"#4ab870",fontWeight:700,marginBottom:6}}>🧪 Нотатки тест-драйву</div>
+              {f.pilotLog.map((l,i)=><div key={i} style={{fontSize:11,color:"#888",marginBottom:4,lineHeight:1.4}}>
+                День {l.day}: {l.note||<span style={{color:"#444",fontStyle:"italic"}}>без нотатки</span>}
+              </div>)}
+            </div>}
             <details style={{marginBottom:4}}>
               <summary style={{fontSize:11,color:"#4a8fd4",cursor:"pointer"}}>+ Бонусні поля (нагорода, ритуал задоволення)</summary>
               <div style={{marginTop:10}}>
