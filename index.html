@@ -1633,14 +1633,18 @@ function App(){
     if(!token)return;
     const today=new Date().toISOString().slice(0,10);
     if(g.todoist?.lastMorningCheck===today)return; // вже перевіряли сьогодні
-    const linkedIds=Object.values(g.todoist?.projects||{}).filter(Boolean);
-    if(linkedIds.length===0)return;
+    const linkedEntries=Object.entries(g.todoist?.projects||{}).filter(([k,v])=>v);
+    if(linkedEntries.length===0)return;
     try{
       let allTasks=[];
-      for(const pid of linkedIds){
+      for(const[key,pid] of linkedEntries){
+        const gameProj=key==="inbox"?"D":key;
         try{
           const res=await tdFetch("/tasks?project_id="+pid,token,"GET");
-          if(res.ok){const tasks=await res.json();allTasks=[...allTasks,...tasks];}
+          if(res.ok){
+            const tasks=await res.json();
+            allTasks=[...allTasks,...tasks.map(t=>({...t,_gameProj:gameProj}))];
+          }
         }catch{}
         await new Promise(r=>setTimeout(r,100));
       }
@@ -1652,10 +1656,50 @@ function App(){
       upd(prev=>({...prev,todoist:{...prev.todoist,lastMorningCheck:today,
         seenNewIds:[...(prev.todoist?.seenNewIds||[]),...active.map(t=>t.id)].slice(-500)}}));
       if(fresh.length>0){
-        setMorningTodoistTasks(fresh.map(t=>({id:t.id,content:t.content})));
+        setMorningTodoistTasks(fresh.map(t=>({
+          id:t.id,content:t.content,priority:t.priority,due:t.due||null,
+          labels:t.labels||[],gameProj:t._gameProj,selected:true,
+        })));
         setShowMorningTodoist(true);
       }
     }catch(e){console.error("Morning todoist check error",e);}
+  };
+
+  const toggleMorningTask=id=>{
+    setMorningTodoistTasks(prev=>prev.map(t=>t.id===id?{...t,selected:!t.selected}:t));
+  };
+  const toggleAllMorningTasks=val=>{
+    setMorningTodoistTasks(prev=>prev.map(t=>({...t,selected:val})));
+  };
+  const addSelectedMorningTasks=()=>{
+    const selected=morningTodoistTasks.filter(t=>t.selected);
+    if(selected.length===0){setShowMorningTodoist(false);return;}
+    const wi=(g.currentWeek||1)-1;
+    upd(prev=>{
+      const pr={...prev.projects};
+      const byProj={};
+      selected.forEach(t=>{(byProj[t.gameProj]=byProj[t.gameProj]||[]).push(t);});
+      Object.entries(byProj).forEach(([projId,tasks])=>{
+        if(!pr[projId])return;
+        const pw=[...pr[projId].weeks];
+        const currentQ=pw[wi].quests;
+        const existingTdIds=new Set(currentQ.map(q=>q.todoistId).filter(Boolean));
+        const newQ=tasks.filter(t=>!existingTdIds.has(t.id)).map(t=>({
+          id:Date.now()+Math.random(),
+          name:t.content,
+          zone:t.priority===4?"red":t.priority===3?"orange":"green",
+          done:false,
+          todoistId:t.id,
+          todoistLabels:t.labels||[],
+          dueDate:t.due?.date||null,
+        }));
+        pw[wi]={...pw[wi],quests:[...currentQ,...newQ]};
+        pr[projId]={...pr[projId],weeks:pw};
+      });
+      return{...prev,projects:pr,todoist:{...prev.todoist,lastSync:Date.now()}};
+    });
+    toast_("✅ +"+selected.length+" задач додано","#4ab870");
+    setShowMorningTodoist(false);
   };
 
   // ── NOTION ───────────────────────────────────────────────────────────────
@@ -2650,20 +2694,33 @@ function App(){
     {/* ── Ранкова перевірка нових задач Todoist ── */}
     {showMorningTodoist&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.88)",zIndex:10003,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
       <div style={{background:"#161921",border:"2px solid rgba(232,68,74,0.4)",borderRadius:16,padding:"20px",width:"100%",maxWidth:420,maxHeight:"80vh",overflowY:"auto"}}>
-        <div style={{textAlign:"center",marginBottom:16}}>
+        <div style={{textAlign:"center",marginBottom:12}}>
           <div style={{fontSize:32,marginBottom:6}}>📥</div>
           <div style={{fontSize:14,fontWeight:700,color:"#f0ece4",marginBottom:4}}>Нові задачі в Todoist</div>
-          <div style={{fontSize:11,color:"#555"}}>{morningTodoistTasks.length} {morningTodoistTasks.length===1?"нова задача з'явилась":"нових задач з'явилось"}</div>
+          <div style={{fontSize:11,color:"#555"}}>{morningTodoistTasks.length} {morningTodoistTasks.length===1?"нова задача з'явилась":"нових задач з'явилось"} · обери які додати</div>
+        </div>
+        <div style={{display:"flex",justifyContent:"flex-end",gap:10,marginBottom:8}}>
+          <button onClick={()=>toggleAllMorningTasks(true)} style={{background:"transparent",border:"none",color:"#4ab870",fontSize:11,cursor:"pointer",padding:0}}>Обрати всі</button>
+          <button onClick={()=>toggleAllMorningTasks(false)} style={{background:"transparent",border:"none",color:"#555",fontSize:11,cursor:"pointer",padding:0}}>Зняти всі</button>
         </div>
         <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:16}}>
-          {morningTodoistTasks.map(t=><div key={t.id} style={{background:"rgba(232,68,74,0.06)",border:"1px solid rgba(232,68,74,0.25)",borderRadius:10,padding:"10px 14px"}}>
-            <div style={{fontSize:13,color:"#f0ece4",lineHeight:1.4}}>{t.content}</div>
-          </div>)}
+          {morningTodoistTasks.map(t=>{
+            const proj=PROJECTS.find(p=>p.id===t.gameProj);
+            return <div key={t.id} onClick={()=>toggleMorningTask(t.id)}
+              style={{background:t.selected?"rgba(232,68,74,0.08)":"rgba(255,255,255,0.02)",border:"1px solid "+(t.selected?"rgba(232,68,74,0.3)":"#252a35"),borderRadius:10,padding:"10px 14px",display:"flex",alignItems:"flex-start",gap:10,cursor:"pointer"}}>
+              <input type="checkbox" checked={t.selected} onChange={()=>toggleMorningTask(t.id)} onClick={e=>e.stopPropagation()}
+                style={{marginTop:2,flexShrink:0,width:16,height:16,accentColor:"#e8444a"}}/>
+              <div style={{flex:1}}>
+                <div style={{fontSize:13,color:"#f0ece4",lineHeight:1.4}}>{t.content}</div>
+                {proj&&<div style={{fontSize:10,color:"#555",marginTop:3,fontFamily:"monospace"}}>{proj.emoji} {proj.short}</div>}
+              </div>
+            </div>;
+          })}
         </div>
         <div style={{display:"flex",gap:8}}>
-          <button onClick={()=>{setShowMorningTodoist(false);syncAllProjects();}}
+          <button onClick={addSelectedMorningTasks}
             style={{flex:2,background:"rgba(232,68,74,0.15)",border:"1px solid rgba(232,68,74,0.4)",borderRadius:10,padding:"11px",color:"#e8444a",fontSize:13,fontWeight:700,cursor:"pointer"}}>
-            🔄 Синхронізувати зараз
+            ✅ Додати обрані ({morningTodoistTasks.filter(t=>t.selected).length})
           </button>
           <button onClick={()=>setShowMorningTodoist(false)}
             style={{flex:1,background:"transparent",border:"1px solid #252a35",borderRadius:10,padding:"11px",color:"#555",fontSize:13,cursor:"pointer"}}>
