@@ -915,13 +915,15 @@ function App(){
     return()=>clearInterval(t);
   },[]);
 
-  // Ранкова перевірка нових задач Todoist — раз на день при відкритті застосунку
+  // Ранкова перевірка нових задач Todoist — раз на день, навіть якщо вкладка
+  // залишається відкритою і сторінка не перезавантажується (актуально для закріпленої вкладки)
   useEffect(()=>{
     if(!loaded)return;
     if(!g.todoist?.token)return;
-    const t=setTimeout(()=>checkMorningTodoist(),1500);
-    return()=>clearTimeout(t);
-  },[loaded]);
+    const t=setTimeout(()=>checkMorningTodoist(),1500); // одразу при вході / після оновлення стану
+    const iv=setInterval(()=>checkMorningTodoist(),15*60*1000); // і далі раз на 15 хв, щоб зловити зміну дня
+    return()=>{clearTimeout(t);clearInterval(iv);};
+  },[loaded,g.todoist?.token,g.todoist?.lastMorningCheck]);
 
   // Нагадування про фасолини кожні 2 години
   const REMINDER_INTERVAL=2*60*60*1000; // 2 год в мс
@@ -1628,13 +1630,16 @@ function App(){
   };
 
   // Ранкова перевірка нових задач в Todoist — раз на день при відкритті гри
-  const checkMorningTodoist=async()=>{
+  const checkMorningTodoist=async(force)=>{
     const token=g.todoist?.token;
-    if(!token)return;
+    if(!token){console.log("[morning-check] немає токена — пропуск");return;}
     const today=new Date().toISOString().slice(0,10);
-    if(g.todoist?.lastMorningCheck===today)return; // вже перевіряли сьогодні
+    if(!force&&g.todoist?.lastMorningCheck===today){
+      console.log("[morning-check] вже перевіряли сьогодні ("+today+") — пропуск");
+      return;
+    }
     const linkedEntries=Object.entries(g.todoist?.projects||{}).filter(([k,v])=>v);
-    if(linkedEntries.length===0)return;
+    if(linkedEntries.length===0){console.log("[morning-check] немає прив'язаних проектів Todoist — пропуск");return;}
     try{
       let allTasks=[];
       for(const[key,pid] of linkedEntries){
@@ -1644,8 +1649,10 @@ function App(){
           if(res.ok){
             const tasks=await res.json();
             allTasks=[...allTasks,...tasks.map(t=>({...t,_gameProj:gameProj}))];
+          } else {
+            console.log("[morning-check] помилка запиту для проекту",key,res.status);
           }
-        }catch{}
+        }catch(e){console.log("[morning-check] fetch error",key,e.message);}
         await new Promise(r=>setTimeout(r,100));
       }
       const active=allTasks.filter(t=>!t.checked&&!t.parent_id&&!t.content.trimStart().startsWith("*"));
@@ -1653,6 +1660,7 @@ function App(){
       const knownIds=new Set(PROJECTS.flatMap(p=>(g.projects[p.id]?.weeks||[]).flatMap(w=>w.quests.map(q=>q.todoistId))).filter(Boolean));
       const seenIds=new Set(g.todoist?.seenNewIds||[]);
       const fresh=active.filter(t=>!knownIds.has(t.id)&&!seenIds.has(t.id));
+      console.log("[morning-check] всього активних:",active.length,"вже в грі:",knownIds.size,"вже показано раніше:",seenIds.size,"нових:",fresh.length);
       upd(prev=>({...prev,todoist:{...prev.todoist,lastMorningCheck:today,
         seenNewIds:[...(prev.todoist?.seenNewIds||[]),...active.map(t=>t.id)].slice(-500)}}));
       if(fresh.length>0){
@@ -1661,8 +1669,10 @@ function App(){
           labels:t.labels||[],gameProj:t._gameProj,selected:true,
         })));
         setShowMorningTodoist(true);
+      } else if(force){
+        toast_("Нових задач немає","#555");
       }
-    }catch(e){console.error("Morning todoist check error",e);}
+    }catch(e){console.log("[morning-check] загальна помилка:",e.message);}
   };
 
   const toggleMorningTask=id=>{
@@ -2897,6 +2907,11 @@ function App(){
               📥 Inbox
             </button>}
           </div>
+
+          <button onClick={()=>{checkMorningTodoist(true);setShowTodoist(false);}}
+            style={{width:"100%",background:"transparent",border:"1px dashed #333",borderRadius:8,padding:"10px",color:"#666",fontSize:11,marginTop:8}}>
+            🧪 Тест: перевірити нові задачі зараз (як вранці)
+          </button>
         </>}
 
         <div style={{background:"#0a0c10",borderRadius:10,padding:"12px 14px",fontSize:11,color:"#444",lineHeight:1.7}}>
