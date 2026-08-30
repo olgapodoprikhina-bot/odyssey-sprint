@@ -1193,6 +1193,7 @@ function App(){
   };
   const toggleDayOff=(type)=>{
     const today=new Date().toISOString().slice(0,10);
+    const prevDate=d=>{const dd=new Date(d+"T00:00:00");dd.setDate(dd.getDate()-1);return dd.toISOString().slice(0,10);};
     upd(p=>{
       const isDayOff=p.isDayOff&&p.dayOffType===type?false:true;
       const dayOffType=isDayOff?type:null;
@@ -1209,7 +1210,24 @@ function App(){
       const dayOffTypes={...(p.dayOffTypes||{})};
       if(isDayOff){dayOffTypes[today]=dayOffType;}
       else{delete dayOffTypes[today];}
-      return{...p,isDayOff,dayOffType,dayOffDates,dayOffTypes,dragon};
+      // Автоперерва: якщо немає активного спринту — гіперфокус автоматично веде запис у "Перерві"
+      let breaks=p.breaks||[];
+      if(!p.sprintStarted){
+        const auto=breaks.find(b=>b.auto&&b.reason==="hyperfocus"&&(b.to===today||b.to===prevDate(today)));
+        const wantHyperToday=isDayOff&&dayOffType==="hyperfocus";
+        if(wantHyperToday){
+          if(auto&&auto.to===prevDate(today)){
+            breaks=breaks.map(b=>b===auto?{...b,to:today}:b);
+          } else if(!(auto&&auto.to===today)){
+            breaks=[...breaks,{id:Date.now(),from:today,to:today,note:"Гіперфокус",auto:true,reason:"hyperfocus"}];
+          }
+        } else if(auto&&auto.to===today){
+          breaks=auto.from===today
+            ?breaks.filter(b=>b!==auto)
+            :breaks.map(b=>b===auto?{...b,to:prevDate(today)}:b);
+        }
+      }
+      return{...p,isDayOff,dayOffType,dayOffDates,dayOffTypes,dragon,breaks};
     });
   };
   // Клік по клітинці календаря: перемкнути форс-мажор для конкретної дати.
@@ -3986,14 +4004,16 @@ function App(){
           {/* ── ВКЛАДКА: ПЕРЕРВА ── */}
           {dayTab==="break"&&<div style={{padding:"14px 16px"}}>
             {breaks.length===0&&<div style={{fontSize:11,color:"#333",marginTop:2}}>Немає записаних перерв</div>}
-            {breaks.map(br=><div key={br.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:"1px solid #1a1a1a"}}>
+            {breaks.map(br=>{
+              const isAutoHyper=br.auto&&br.reason==="hyperfocus";
+              return <div key={br.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:"1px solid #1a1a1a"}}>
               <div style={{flex:1}}>
-                <div style={{fontSize:12,color:"#b87adb",fontWeight:600}}>{br.from} → {br.to} <span style={{fontWeight:400,color:"#555"}}>({diffDays(br.from,br.to)} дн.)</span></div>
-                {br.note&&<div style={{fontSize:11,color:"#555",marginTop:2}}>{br.note}</div>}
+                <div style={{fontSize:12,color:isAutoHyper?"#e0692a":"#b87adb",fontWeight:600}}>{isAutoHyper?"🔥 ":""}{br.from} → {br.to} <span style={{fontWeight:400,color:"#555"}}>({diffDays(br.from,br.to)} дн.)</span></div>
+                {br.note&&<div style={{fontSize:11,color:"#555",marginTop:2}}>{br.note}{isAutoHyper&&<span style={{color:"#444"}}> · авто</span>}</div>}
               </div>
               <button onClick={()=>upd(p=>({...p,breaks:p.breaks.filter(x=>x.id!==br.id)}))}
                 style={{fontSize:12,color:"#333",background:"transparent",border:"none",cursor:"pointer",padding:"4px"}}>×</button>
-            </div>)}
+            </div>;})}
           </div>}
 
           {/* ── ВКЛАДКА: ЗАВТРА ── */}
@@ -4215,10 +4235,11 @@ function App(){
         </div>
         {(g.breaks||[]).slice().sort((a,b)=>a.from.localeCompare(b.from)).map(br=>{
           const days=Math.max(0,Math.round((new Date(br.to)-new Date(br.from))/86400000)+1);
+          const isAutoHyper=br.auto&&br.reason==="hyperfocus";
           return <div key={br.id} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 0",borderTop:"1px solid #1a1a1a"}}>
             <div style={{flex:1}}>
-              <span style={{fontSize:12,color:"#b87adb",fontWeight:600}}>{br.from} → {br.to}</span>
-              <span style={{fontSize:11,color:"#555",marginLeft:6}}>{days} дн.{br.note?" · "+br.note:""}</span>
+              <span style={{fontSize:12,color:isAutoHyper?"#e0692a":"#b87adb",fontWeight:600}}>{isAutoHyper?"🔥 ":""}{br.from} → {br.to}</span>
+              <span style={{fontSize:11,color:"#555",marginLeft:6}}>{days} дн.{br.note?" · "+br.note:""}{isAutoHyper?" · авто":""}</span>
             </div>
             <button onClick={()=>upd(p=>({...p,breaks:p.breaks.filter(x=>x.id!==br.id)}))} style={{fontSize:12,color:"#333",background:"transparent",border:"none",cursor:"pointer"}}>×</button>
           </div>;
