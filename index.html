@@ -3327,8 +3327,8 @@ function App(){
         </div>}
       </div>
 
-      {/* ════ ДРАКОНЧИК ════ */}
-      {g.sprintStarted&&(()=>{
+      {/* ════ ДРАКОНЧИК — показуємо і до старту спринту, щоб дні (гіперфокус тощо) було видно одразу ════ */}
+      {(()=>{
         const dr=g.dragon||{scene:0,lastAdvanceDate:null,finished:false};
         const sc=DRAGON_SCENES[Math.min(dr.scene,21)]||DRAGON_SCENES[0];
         const today=new Date().toISOString().slice(0,10);
