@@ -1934,20 +1934,23 @@ function App() {
             }, 600);
           }
           setG(updated);
-          save(updated);
+          save(updated, {
+            skipFirebase: true
+          });
           setNewDaySummary(summary);
           setShowNewDay(true);
           setBbInput("");
           setBbPreview(null);
           setSpoonsInput("");
         } else {
-          // Той самий день або перший запуск
+          // Той самий день або перший запуск — реальних змін немає,
+          // тож не чіпаємо мітку часу збереження (щоб не "обганяти" хмару
+          // штучно, просто відкривши застосунок).
           const updated = {
             ...s,
             lastActiveDate: today
           };
           setG(updated);
-          save(updated);
           if (s.bbGarmin) {
             setBbInput(s.bbGarmin);
           }
@@ -1969,12 +1972,18 @@ function App() {
           }
         }
       } else {
-        // Перший запуск — встановити сьогоднішню дату
+        // Перший запуск на цьому пристрої/у цьому файлі — локальних даних немає.
+        // НЕ пушимо порожній стан у хмару і НЕ ставимо йому "свіжу" позначку часу:
+        // якщо в хмарі вже є реальні дані (з іншого пристрою), нижній блок Firebase
+        // повинен їх підхопити замість цього порожнього стану.
         const today = new Date().toISOString().slice(0, 10);
         const f2 = fresh();
         f2.lastActiveDate = today;
         setG(f2);
-        save(f2);
+        try {
+          localStorage.setItem(SAVE_KEY, JSON.stringify(f2));
+          localStorage.setItem(SAVE_KEY + "_ts", "0");
+        } catch {}
       }
     } catch {}
     setLoaded(true);
@@ -2045,13 +2054,13 @@ function App() {
       if (unsub) unsub();
     };
   }, []);
-  const save = useCallback(s => {
+  const save = useCallback((s, opts) => {
     try {
       const json = JSON.stringify(s);
       const ts = Date.now();
       localStorage.setItem(SAVE_KEY, json);
       localStorage.setItem(SAVE_KEY + "_ts", String(ts));
-      if (window.fbSave) window.fbSave({
+      if (window.fbSave && !(opts && opts.skipFirebase)) window.fbSave({
         [SAVE_KEY]: json,
         _updatedAt: ts
       }).catch(() => {});
@@ -3682,6 +3691,25 @@ function App() {
     }
     return null;
   };
+  const fetchFreshEventsDataSourceId = async token => {
+    try {
+      const db = await notionFetch("/databases/" + EVENTS_DB_ID, token, "GET");
+      const dsId = db?.data_sources?.[0]?.id;
+      if (dsId) {
+        upd(p => ({
+          ...p,
+          notion: {
+            ...p.notion,
+            eventsDsId: dsId
+          }
+        }));
+        return dsId;
+      }
+    } catch (e) {
+      console.warn("Notion fetchFreshEventsDataSourceId error:", e);
+    }
+    return null;
+  };
   const saveEveningToNotion = async eveningText => {
     const token = g.notion?.token || notionToken;
     if (!token || !eveningText?.trim()) return false;
@@ -3691,36 +3719,48 @@ function App() {
     const dateStr = today.toISOString().slice(0, 10);
     try {
       const dsId = await getEventsDataSourceId(token);
-      const parent = dsId ? {
-        type: "data_source_id",
-        data_source_id: dsId
-      } : {
-        database_id: EVENTS_DB_ID
-      };
-      const res = await notionFetch("/pages", token, "POST", {
-        parent,
-        properties: {
-          "title": {
-            title: [{
-              text: {
-                content: titleStr
+      const doSave = dsId2 => {
+        const parent = dsId2 ? {
+          type: "data_source_id",
+          data_source_id: dsId2
+        } : {
+          database_id: EVENTS_DB_ID
+        };
+        return notionFetch("/pages", token, "POST", {
+          parent,
+          properties: {
+            "title": {
+              title: [{
+                text: {
+                  content: titleStr
+                }
+              }]
+            },
+            "Date": {
+              date: {
+                start: dateStr
               }
-            }]
-          },
-          "Date": {
-            date: {
-              start: dateStr
+            },
+            "Описание": {
+              rich_text: [{
+                text: {
+                  content: eveningText.trim()
+                }
+              }]
             }
-          },
-          "Описание": {
-            rich_text: [{
-              text: {
-                content: eveningText.trim()
-              }
-            }]
           }
+        });
+      };
+      let res = await doSave(dsId);
+      const isStaleSchema = res?.status === 400 && /is not a property|property.*does not exist/i.test(res?.message || "");
+      if (isStaleSchema) {
+        // Схема бази в Notion могла змінитися (напр. міграція на data sources) —
+        // закешований ID застарів. Оновлюємо і пробуємо ще раз, один раз.
+        const freshDsId = await fetchFreshEventsDataSourceId(token);
+        if (freshDsId && freshDsId !== dsId) {
+          res = await doSave(freshDsId);
         }
-      });
+      }
       if (res?.id) {
         toast_("📓 Збережено в Notion", "#4ab870");
         return true;
