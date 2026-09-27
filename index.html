@@ -313,6 +313,9 @@ const fresh=()=>({
   tomorrowStartTime:"09:00",
   tomorrowActivity:"",    // що робитиму (робочий) або як проведу (вихідний)
   eveningActivity:"",     // що буду робити ввечері після роботи
+  morningReflection:"",   // що очікую від сьогодні (ранкова рефлексія)
+  eveningReflection:"",   // як пройшов день, що зробила (вечірня рефлексія)
+  reflectionHistory:{},   // {"YYYY-MM-DD": {morning:"", evening:""}}
   workFinished:false,     // чи зафіксовано завершення роботи сьогодні
   sprintConstants:[],
   isDayOff:false,dayOffType:null,dayOffDates:[],dayOffTypes:{},
@@ -670,6 +673,9 @@ function App(){
       if(!s.tomorrowStartTime){s.tomorrowStartTime="09:00";}
       if(!('tomorrowActivity' in s)){s.tomorrowActivity="";}
       if(!('eveningActivity' in s)){s.eveningActivity="";}
+      if(!('morningReflection' in s)){s.morningReflection="";}
+      if(!('eveningReflection' in s)){s.eveningReflection="";}
+      if(!s.reflectionHistory){s.reflectionHistory={};}
       if(!('workFinished' in s)){s.workFinished=false;}
       if(!s.carriedToTomorrow){s.carriedToTomorrow=[];}
       if(!s.forceMajeureBank){s.forceMajeureBank={total:3,used:0};}
@@ -722,6 +728,9 @@ function App(){
             id:p.id, emoji:p.emoji, short:p.short, color:p.color,
             done:s.dailyQuests.filter(q=>q.done&&q.projId===p.id).length,
           })).filter(p=>p.done>0),
+          // Рефлексії
+          morningReflection:(s.morningReflection||"").trim(),
+          eveningReflection:(s.eveningReflection||"").trim(),
           // Вечірній план і завтра
           eveningActivity:(s.eveningActivity||"").trim(),
           tomorrowDayType:s.tomorrowDayType||null,
@@ -766,6 +775,10 @@ function App(){
             if(q.notionPageId) markQuestCarriedInNotion(q.notionPageId,notionTok);
           });
         }
+        const newReflHistory={...(s.reflectionHistory||{})};
+        if(summary.morningReflection||summary.eveningReflection){
+          newReflHistory[s.lastActiveDate]={morning:summary.morningReflection,evening:summary.eveningReflection};
+        }
         const updated={...s,
           lastActiveDate:today,
           dailyQuests:carriedQuests,
@@ -777,10 +790,11 @@ function App(){
           dayPhase:"ritual",flowDone:[],
           isDayOff:false,
           yesterdaySummary:summary,
+          reflectionHistory:newReflHistory,
           dragon:{...dragonPrev,scene:newDragonScene},
           forceMajeureBank:newBank,
           tomorrowPlan:"",tomorrowDayType:null,tomorrowStartTime:"09:00",tomorrowActivity:"",
-          eveningActivity:"",workFinished:false,questsCancelledToday:0,carriedToTomorrow:[],
+          eveningActivity:"",morningReflection:"",eveningReflection:"",workFinished:false,questsCancelledToday:0,carriedToTomorrow:[],
           // Скинути виконання мовних сесій (але зберегти блоки і history)
           langSession:{...s.langSession,
             fr:{...s.langSession.fr, todayDone:{}, todayPicks:{}},
@@ -3031,6 +3045,18 @@ function App(){
             <div style={{fontSize:11,color:"#444",marginTop:4}}>Сьогодні новий шанс 💪</div>
           </div>}
 
+          {/* Вчора вранці очікувала */}
+          {nd.morningReflection?<div style={{background:"rgba(200,168,64,0.06)",border:"1px solid rgba(200,168,64,0.2)",borderRadius:12,padding:"12px 14px",marginBottom:14}}>
+            <div style={{fontFamily:"monospace",fontSize:9,letterSpacing:"0.12em",color:"#c8a840",textTransform:"uppercase",marginBottom:6}}>✨ Вранці очікувала</div>
+            <div style={{fontSize:13,color:"#c0bdb5"}}>{nd.morningReflection}</div>
+          </div>:null}
+
+          {/* Вчора ввечері підсумувала */}
+          {nd.eveningReflection?<div style={{background:"rgba(74,184,112,0.06)",border:"1px solid rgba(74,184,112,0.2)",borderRadius:12,padding:"12px 14px",marginBottom:14}}>
+            <div style={{fontFamily:"monospace",fontSize:9,letterSpacing:"0.12em",color:"#4ab870",textTransform:"uppercase",marginBottom:6}}>📝 Ввечері підсумувала</div>
+            <div style={{fontSize:13,color:"#c0bdb5"}}>{nd.eveningReflection}</div>
+          </div>:null}
+
           {/* Вчора запланувала */}
           {nd.eveningActivity?<div style={{background:"rgba(155,89,182,0.07)",border:"1px solid rgba(155,89,182,0.2)",borderRadius:12,padding:"12px 14px",marginBottom:14}}>
             <div style={{fontFamily:"monospace",fontSize:9,letterSpacing:"0.12em",color:"#9b59b6",textTransform:"uppercase",marginBottom:6}}>Вчора планувала ввечері</div>
@@ -3932,6 +3958,12 @@ function App(){
                 Вчора план не заповнено — заповни ввечері 👇
               </div>
             }
+            <div style={{marginBottom:14}}>
+              <div style={{fontSize:10,color:"#886830",fontFamily:"monospace",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:6}}>✨ Що очікую від сьогодні?</div>
+              <textarea value={g.morningReflection||""} onChange={e=>upd(p=>({...p,morningReflection:e.target.value}))}
+                placeholder="Яким хочу бачити цей день..." rows={2}
+                style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid #252a35",borderRadius:8,padding:"10px 12px",color:"#f0ece4",fontSize:13,resize:"none",lineHeight:1.5,fontFamily:"system-ui,sans-serif",outline:"none",boxSizing:"border-box"}}/>
+            </div>
             <div style={{background:"rgba(200,168,64,0.06)",border:"1px solid rgba(200,168,64,0.2)",borderRadius:10,padding:"16px",marginBottom:12}}>
               <div style={{fontSize:13,color:"#f0ece4",lineHeight:1.6,marginBottom:14}}>
                 {wt==="digital"?"🖥️ Відкриваю CLO3D і дивлюсь на файл — без дій, просто дивлюсь 2 хвилини":wt==="manual"?"🧵 Розкладаю тканину і дивлюсь — що хочу зробити сьогодні (2 хвилини)":"⚡ Сідаю за стіл, дивлюсь на план і нічого не роблю — просто присутня (2 хвилини)"}
@@ -4077,6 +4109,10 @@ function App(){
                   <div style={{fontSize:13,color:"#c8a0e8",lineHeight:1.5,fontWeight:500}}>Не забудь погодувати Дракончика, люба! 💜</div>
                 </div></>;
             })()}
+            <div style={{fontSize:10,color:"#888",fontFamily:"monospace",textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:8}}>📝 Як пройшов день? Що зробила?</div>
+            <textarea value={g.eveningReflection||""} onChange={e=>upd(p=>({...p,eveningReflection:e.target.value}))}
+              placeholder="Коротко підсумуй сьогодні..." rows={3}
+              style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid #252a35",borderRadius:8,padding:"10px 12px",color:"#f0ece4",fontSize:13,resize:"none",lineHeight:1.5,fontFamily:"system-ui,sans-serif",outline:"none",marginBottom:16,boxSizing:"border-box"}}/>
             <div style={{fontSize:10,color:"#888",fontFamily:"monospace",textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:8}}>Чим плануєш займатись ввечері?</div>
             <textarea value={g.eveningActivity||""} onChange={e=>{upd(p=>({...p,eveningActivity:e.target.value}));if(eveningNotionState!=="idle")setEveningNotionState("idle");}}
               placeholder="Прогулянка, серіал, книга, хобі..." rows={2}
