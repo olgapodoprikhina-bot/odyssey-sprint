@@ -59,6 +59,7 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:#0d0f14;font-family:system-ui,-apple-system,sans-serif}
@@ -1981,7 +1982,18 @@ function App() {
     // Firebase: завантажити якщо новіші, підписатись на зміни
     let unsub = null;
     (async () => {
-      if (!window.fbLoad || !window.fbSubscribe) return;
+      // Firebase-модуль ініціалізується асинхронно (import з мережі) —
+      // чекаємо на нього замість того, щоб одразу здатись, інакше
+      // на швидкому завантаженні сторінки синхронізація мовчки не увімкнеться.
+      let tries = 0;
+      while ((!window.fbLoad || !window.fbSubscribe) && tries < 50) {
+        await new Promise(r => setTimeout(r, 100));
+        tries++;
+      }
+      if (!window.fbLoad || !window.fbSubscribe) {
+        console.warn('Firebase: не ініціалізувався за 5с — синхронізація вимкнена цього разу');
+        return;
+      }
       try {
         const remote = await window.fbLoad();
         if (remote && remote[SAVE_KEY] && remote._updatedAt) {
