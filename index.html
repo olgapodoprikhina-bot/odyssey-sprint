@@ -11157,7 +11157,7 @@ function App() {
             setTimeout(() => setEveningBonus(null), 2800);
           }
           // Зберегти вечірні нотатки в Notion Events (якщо ще не збережено кнопкою вище)
-          if (g.eveningActivity?.trim() && eveningNotionState !== "done") saveEveningToNotion(g.eveningActivity);
+          if (g.eveningReflection?.trim() && eveningNotionState !== "done") saveEveningToNotion(g.eveningReflection);
           const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
           const hasTomorrow = PROJECTS.some(p => g.projects[p.id]?.weeks.some(w => w.quests.some(q => !q.done && q.dueDate === tomorrow)));
           if (hasTomorrow) setTimeout(() => setShowTomorrowTasksAlert(true), 1000);
@@ -11239,10 +11239,13 @@ function App() {
       }
     }, "📝 Як пройшов день? Що зробила?"), /*#__PURE__*/React.createElement("textarea", {
       value: g.eveningReflection || "",
-      onChange: e => upd(p => ({
-        ...p,
-        eveningReflection: e.target.value
-      })),
+      onChange: e => {
+        upd(p => ({
+          ...p,
+          eveningReflection: e.target.value
+        }));
+        if (eveningNotionState !== "idle") setEveningNotionState("idle");
+      },
       placeholder: "Коротко підсумуй сьогодні...",
       rows: 3,
       style: {
@@ -11271,13 +11274,10 @@ function App() {
       }
     }, "Чим плануєш займатись ввечері?"), /*#__PURE__*/React.createElement("textarea", {
       value: g.eveningActivity || "",
-      onChange: e => {
-        upd(p => ({
-          ...p,
-          eveningActivity: e.target.value
-        }));
-        if (eveningNotionState !== "idle") setEveningNotionState("idle");
-      },
+      onChange: e => upd(p => ({
+        ...p,
+        eveningActivity: e.target.value
+      })),
       placeholder: "Прогулянка, серіал, книга, хобі...",
       rows: 2,
       style: {
@@ -11296,14 +11296,14 @@ function App() {
         boxSizing: "border-box"
       }
     }), /*#__PURE__*/React.createElement("button", {
-      disabled: !g.eveningActivity?.trim() || eveningNotionState === "sending",
+      disabled: !g.eveningReflection?.trim() || eveningNotionState === "sending",
       onClick: async () => {
         if (!g.notion?.token) {
           setShowNotion(true);
           return;
         }
         setEveningNotionState("sending");
-        const ok = await saveEveningToNotion(g.eveningActivity);
+        const ok = await saveEveningToNotion(g.eveningReflection);
         setEveningNotionState(ok ? "done" : "error");
         if (ok) setTimeout(() => setEveningNotionState("idle"), 2500);
       },
@@ -11313,10 +11313,10 @@ function App() {
         border: "1px solid " + (eveningNotionState === "done" ? "rgba(74,184,112,0.35)" : eveningNotionState === "error" ? "rgba(224,85,85,0.35)" : "rgba(184,122,219,0.25)"),
         borderRadius: 8,
         padding: "10px",
-        color: eveningNotionState === "done" ? "#4ab870" : eveningNotionState === "error" ? "#e05555" : g.eveningActivity?.trim() ? "#b87adb" : "#444",
+        color: eveningNotionState === "done" ? "#4ab870" : eveningNotionState === "error" ? "#e05555" : g.eveningReflection?.trim() ? "#b87adb" : "#444",
         fontSize: 12,
         fontWeight: 600,
-        cursor: g.eveningActivity?.trim() ? "pointer" : "not-allowed",
+        cursor: g.eveningReflection?.trim() ? "pointer" : "not-allowed",
         marginBottom: 16,
         display: "flex",
         alignItems: "center",
