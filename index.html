@@ -1384,6 +1384,7 @@ function App() {
   const [notionSaving, setNotionSaving] = useState(false);
   const [notionMsg, setNotionMsg] = useState("");
   const [projLoading, setProjLoading] = useState(false);
+  const [projMsg, setProjMsg] = useState("");
   const [eventsDbSearching, setEventsDbSearching] = useState(false);
   const [eventsDbResults, setEventsDbResults] = useState(null);
   const [tdToken, setTdToken] = useState("");
@@ -2110,7 +2111,7 @@ function App() {
       msg,
       color
     });
-    tRef.current = setTimeout(() => setToast(null), 2500);
+    tRef.current = setTimeout(() => setToast(null), color === "#e05555" ? 6000 : 2500);
   };
 
   // SOS: якщо фасолини <=4 — показати алерт (але не заважати переходити до квестів)
@@ -4085,71 +4086,97 @@ function App() {
     }
   };
   // Підтягнути активні проекти з бази "Проекты" в Notion → список для прив'язки задач
+  // Повідомлення виводиться і під кнопкою (тост може ховатись за панеллю Notion)
   const loadNotionProjects = async () => {
     const token = (g.notion?.token || notionToken || "").trim();
+    const fail = m => {
+      setProjMsg("✗ " + m);
+      toast_("Notion: " + m, "#e05555");
+    };
+    setProjMsg("");
     if (!token) {
-      toast_("Спочатку вкажи Notion токен", "#e05555");
+      fail("спочатку вкажи токен вище й натисни «Зберегти»");
       return;
     }
     setProjLoading(true);
     try {
-      const db = await notionFetch("/databases/" + NOTION_PROJECTS_DB, token, "GET");
-      const dsId = db?.data_sources?.[0]?.id;
-      if (!dsId) {
-        toast_("Notion: не бачу базу «Проекты» — " + (db?.message || "підключи інтеграцію до бази (•••→Підключення)"), "#e05555");
+      const body = {
+        page_size: 100,
+        filter: {
+          and: [{
+            or: [{
+              property: "Категория",
+              select: {
+                equals: "Проект краткосрочный"
+              }
+            }, {
+              property: "Категория",
+              select: {
+                equals: "Проект довгостроковий"
+              }
+            }]
+          }, {
+            or: [{
+              property: "Статус",
+              status: {
+                equals: "В работе"
+              }
+            }, {
+              property: "Статус",
+              status: {
+                equals: "Не начато"
+              }
+            }]
+          }]
+        }
+      };
+      // Шляхи запиту: спершу data source (нове API), потім класичний database query
+      const paths = [];
+      try {
+        const db = await notionFetch("/databases/" + NOTION_PROJECTS_DB, token, "GET");
+        if (db?.data_sources?.[0]?.id) paths.push("/data_sources/" + db.data_sources[0].id + "/query");
+        else if (db?.object === "error") setProjMsg("ℹ database: [" + (db.status || "") + " " + (db.code || "") + "] " + (db.message || ""));
+      } catch (e) {}
+      paths.push("/data_sources/d6493bee-c393-4f19-829d-5ae799c7b77d/query");
+      paths.push("/databases/" + NOTION_PROJECTS_DB + "/query");
+      let found = null,
+        lastErr = "";
+      for (const path of paths) {
+        const items = [];
+        let cursor = null,
+          guard = 0,
+          ok = true;
+        do {
+          const b2 = cursor ? {
+            ...body,
+            start_cursor: cursor
+          } : body;
+          const res = await notionFetch(path, token, "POST", b2);
+          if (!res || res.object === "error") {
+            lastErr = path + " → [" + (res?.status || "?") + " " + (res?.code || "") + "] " + (res?.message || "помилка");
+            ok = false;
+            break;
+          }
+          (res.results || []).forEach(pg => {
+            const t = pg.properties?.["Мои проекты"]?.title || [];
+            const name = t.map(x => x.plain_text || "").join("").trim();
+            if (name) items.push({
+              name,
+              id: pg.id.replace(/-/g, "")
+            });
+          });
+          cursor = res.has_more ? res.next_cursor : null;
+          guard++;
+        } while (cursor && guard < 10);
+        if (ok) {
+          found = items;
+          break;
+        }
+      }
+      if (!found) {
+        fail(lastErr || "не вдалося отримати проекти");
         return;
       }
-      const found = [];
-      let cursor = null,
-        guard = 0;
-      do {
-        const body = {
-          page_size: 100,
-          filter: {
-            and: [{
-              or: [{
-                property: "Категория",
-                select: {
-                  equals: "Проект краткосрочный"
-                }
-              }, {
-                property: "Категория",
-                select: {
-                  equals: "Проект довгостроковий"
-                }
-              }]
-            }, {
-              or: [{
-                property: "Статус",
-                status: {
-                  equals: "В работе"
-                }
-              }, {
-                property: "Статус",
-                status: {
-                  equals: "Не начато"
-                }
-              }]
-            }]
-          }
-        };
-        if (cursor) body.start_cursor = cursor;
-        const res = await notionFetch("/data_sources/" + dsId + "/query", token, "POST", body);
-        if (!res || res.object === "error") {
-          toast_("Notion: " + (res?.message || "помилка запиту проектів"), "#e05555");
-          return;
-        }
-        (res.results || []).forEach(pg => {
-          const t = pg.properties?.["Мои проекты"]?.title || [];
-          const name = t.map(x => x.plain_text || "").join("").trim();
-          if (name) found.push({
-            name,
-            id: pg.id.replace(/-/g, "")
-          });
-        });
-        cursor = res.has_more ? res.next_cursor : null;
-        guard++;
-      } while (cursor && guard < 10);
       const cur = (g.notion?.projList || []).filter(x => x.id && x.name);
       const have = new Set(cur.map(x => x.id.replace(/-/g, "")));
       const added = found.filter(x => !have.has(x.id));
@@ -4160,9 +4187,10 @@ function App() {
           projList: [...cur, ...added]
         }
       }));
-      toast_("📓 Проектів додано: " + added.length + " (усього " + (cur.length + added.length) + ")", "#4ab870");
+      setProjMsg("✓ Знайдено " + found.length + ", додано нових: " + added.length + " (усього " + (cur.length + added.length) + ")");
+      toast_("📓 Проектів додано: " + added.length, "#4ab870");
     } catch (e) {
-      toast_("Notion: " + e.message, "#e05555");
+      fail(e.message || "невідома помилка");
     } finally {
       setProjLoading(false);
     }
@@ -5128,8 +5156,8 @@ function App() {
       color: "#fff",
       fontSize: 13,
       fontWeight: 700,
-      zIndex: 9999,
-      whiteSpace: "nowrap",
+      zIndex: 30000,
+      whiteSpace: "normal",
       maxWidth: "92%",
       textAlign: "center",
       boxShadow: "0 4px 20px #0008"
@@ -8812,7 +8840,15 @@ function App() {
       fontWeight: 600,
       marginBottom: 6
     }
-  }, projLoading ? "⏳ Завантажую..." : "🔄 Підтягнути проекти з Notion"), /*#__PURE__*/React.createElement("button", {
+  }, projLoading ? "⏳ Завантажую..." : "🔄 Підтягнути проекти з Notion"), projMsg && /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      lineHeight: 1.5,
+      marginBottom: 8,
+      wordBreak: "break-word",
+      color: projMsg.startsWith("✓") ? "#4ab870" : projMsg.startsWith("ℹ") ? "#e0a555" : "#e05555"
+    }
+  }, projMsg), /*#__PURE__*/React.createElement("button", {
     onClick: () => {
       const list = [...(g.notion?.projList || []), {
         name: "",
