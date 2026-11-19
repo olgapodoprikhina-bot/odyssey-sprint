@@ -1383,6 +1383,7 @@ function App() {
   const [notionDbId, setNotionDbId] = useState("");
   const [notionSaving, setNotionSaving] = useState(false);
   const [notionMsg, setNotionMsg] = useState("");
+  const [projLoading, setProjLoading] = useState(false);
   const [eventsDbSearching, setEventsDbSearching] = useState(false);
   const [eventsDbResults, setEventsDbResults] = useState(null);
   const [tdToken, setTdToken] = useState("");
@@ -4081,6 +4082,89 @@ function App() {
         [q.id]: "error"
       }));
       toast_("Notion: " + e.message, "#e05555");
+    }
+  };
+  // Підтягнути активні проекти з бази "Проекты" в Notion → список для прив'язки задач
+  const loadNotionProjects = async () => {
+    const token = (g.notion?.token || notionToken || "").trim();
+    if (!token) {
+      toast_("Спочатку вкажи Notion токен", "#e05555");
+      return;
+    }
+    setProjLoading(true);
+    try {
+      const db = await notionFetch("/databases/" + NOTION_PROJECTS_DB, token, "GET");
+      const dsId = db?.data_sources?.[0]?.id;
+      if (!dsId) {
+        toast_("Notion: не бачу базу «Проекты» — " + (db?.message || "підключи інтеграцію до бази (•••→Підключення)"), "#e05555");
+        return;
+      }
+      const found = [];
+      let cursor = null,
+        guard = 0;
+      do {
+        const body = {
+          page_size: 100,
+          filter: {
+            and: [{
+              or: [{
+                property: "Категория",
+                select: {
+                  equals: "Проект краткосрочный"
+                }
+              }, {
+                property: "Категория",
+                select: {
+                  equals: "Проект довгостроковий"
+                }
+              }]
+            }, {
+              or: [{
+                property: "Статус",
+                status: {
+                  equals: "В работе"
+                }
+              }, {
+                property: "Статус",
+                status: {
+                  equals: "Не начато"
+                }
+              }]
+            }]
+          }
+        };
+        if (cursor) body.start_cursor = cursor;
+        const res = await notionFetch("/data_sources/" + dsId + "/query", token, "POST", body);
+        if (!res || res.object === "error") {
+          toast_("Notion: " + (res?.message || "помилка запиту проектів"), "#e05555");
+          return;
+        }
+        (res.results || []).forEach(pg => {
+          const t = pg.properties?.["Мои проекты"]?.title || [];
+          const name = t.map(x => x.plain_text || "").join("").trim();
+          if (name) found.push({
+            name,
+            id: pg.id.replace(/-/g, "")
+          });
+        });
+        cursor = res.has_more ? res.next_cursor : null;
+        guard++;
+      } while (cursor && guard < 10);
+      const cur = (g.notion?.projList || []).filter(x => x.id && x.name);
+      const have = new Set(cur.map(x => x.id.replace(/-/g, "")));
+      const added = found.filter(x => !have.has(x.id));
+      upd(p => ({
+        ...p,
+        notion: {
+          ...p.notion,
+          projList: [...cur, ...added]
+        }
+      }));
+      toast_("📓 Проектів додано: " + added.length + " (усього " + (cur.length + added.length) + ")", "#4ab870");
+    } catch (e) {
+      toast_("Notion: " + e.message, "#e05555");
+    } finally {
+      setProjLoading(false);
     }
   };
   const markQuestDoneInNotion = async (notionPageId, token) => {
@@ -8715,6 +8799,20 @@ function App() {
       justifyContent: "center"
     }
   }, "×"))), /*#__PURE__*/React.createElement("button", {
+    onClick: loadNotionProjects,
+    disabled: projLoading,
+    style: {
+      width: "100%",
+      background: "rgba(74,143,212,0.1)",
+      border: "1px solid rgba(74,143,212,0.3)",
+      borderRadius: 8,
+      padding: "9px",
+      color: "#4a8fd4",
+      fontSize: 12,
+      fontWeight: 600,
+      marginBottom: 6
+    }
+  }, projLoading ? "⏳ Завантажую..." : "🔄 Підтягнути проекти з Notion"), /*#__PURE__*/React.createElement("button", {
     onClick: () => {
       const list = [...(g.notion?.projList || []), {
         name: "",
