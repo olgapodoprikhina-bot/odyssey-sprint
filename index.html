@@ -4093,6 +4093,17 @@ function App() {
           }
         }
       });
+      // Галочка "Завершено?" — окремим запитом, щоб помилка в назві поля не зламала основне закриття
+      const chk = await notionFetch("/pages/" + notionPageId, token, "PATCH", {
+        properties: {
+          "Завершено?": {
+            checkbox: true
+          }
+        }
+      });
+      if (!chk || chk.object === "error") {
+        toast_("Notion: не вдалося поставити галочку 'Завершено?'" + (chk?.message ? " (" + chk.message + ")" : ""), "#e05555");
+      }
     } catch {}
   };
   // Оновити задачу в Notion коли переходить в "сьогодні"
