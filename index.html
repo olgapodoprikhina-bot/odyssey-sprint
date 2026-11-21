@@ -1581,11 +1581,6 @@ function App() {
   const [startBonus, setStartBonus] = useState(null); // {level,mana} | null // для лічильника 9:00
   const [eveningBonus, setEveningBonus] = useState(null); // аналог для 18:30
   const tRef = useRef(null);
-  // Ritual timer
-  const [timerLeft, setTimerLeft] = useState(null);
-  const [timerRunning, setTimerRunning] = useState(false);
-  const [timerDone, setTimerDone] = useState(false);
-  const ritualTimerRef = useRef(null);
   useEffect(() => {
     try {
       const r = localStorage.getItem(SAVE_KEY);
@@ -2198,46 +2193,6 @@ function App() {
     return () => clearTimeout(t);
   }, [screen, g.energy, g.mode]);
 
-  // Ritual timer
-  const playBeep = () => {
-    try {
-      const ctx = new (window.AudioContext || window.webkitAudioContext)();
-      [[660, 0], [880, 0.2], [1047, 0.4]].forEach(([freq, delay]) => {
-        const o = ctx.createOscillator();
-        const gn = ctx.createGain();
-        o.connect(gn);
-        gn.connect(ctx.destination);
-        o.frequency.value = freq;
-        o.type = "sine";
-        gn.gain.setValueAtTime(0, ctx.currentTime + delay);
-        gn.gain.linearRampToValueAtTime(0.45, ctx.currentTime + delay + 0.04);
-        gn.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + 0.45);
-        o.start(ctx.currentTime + delay);
-        o.stop(ctx.currentTime + delay + 0.5);
-      });
-    } catch {}
-  };
-  useEffect(() => {
-    if (!timerRunning) return;
-    ritualTimerRef.current = setInterval(() => {
-      setTimerLeft(prev => {
-        if (prev <= 1) {
-          clearInterval(ritualTimerRef.current);
-          setTimerRunning(false);
-          setTimerDone(true);
-          playBeep();
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearInterval(ritualTimerRef.current);
-  }, [timerRunning]);
-  const startTimer = sec => {
-    setTimerLeft(sec);
-    setTimerRunning(true);
-    setTimerDone(false);
-  };
   const spendSpoon = (amount, label) => {
     const cur = g.spoons?.current ?? 10;
     const next = Math.max(0, cur - amount);
@@ -4517,8 +4472,6 @@ function App() {
         // Якщо дані з іншого дня або dayPhase=flow — скидаємо до ritual
         if (data.lastActiveDate !== today || data.dayPhase === "flow") {
           data.dayPhase = "ritual";
-          data.timerLeft = null;
-          data.timerDone = false;
         }
         setG(data);
         save(data);
@@ -10671,7 +10624,6 @@ function App() {
   }, s.label)))), (() => {
     const ph = g.dayPhase || "ritual";
     const wt = g.workType || null;
-    const fmtTimer = s => Math.floor(s / 60) + ":" + (s % 60).toString().padStart(2, "0");
     const breaks = (g.breaks || []).slice().sort((a, b) => b.from.localeCompare(a.from));
     const diffDays = (a, b) => Math.round((new Date(b) - new Date(a)) / 86400000) + 1;
     const tt = g.tomorrowDayType || null;
@@ -10944,55 +10896,9 @@ function App() {
         outline: "none",
         boxSizing: "border-box"
       }
-    })), /*#__PURE__*/React.createElement("div", {
-      style: {
-        background: "rgba(200,168,64,0.06)",
-        border: "1px solid rgba(200,168,64,0.2)",
-        borderRadius: 10,
-        padding: "16px",
-        marginBottom: 12
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: 13,
-        color: "#f0ece4",
-        lineHeight: 1.6,
-        marginBottom: 14
-      }
-    }, wt === "digital" ? "🖥️ Відкриваю CLO3D і дивлюсь на файл — без дій, просто дивлюсь 2 хвилини" : wt === "manual" ? "🧵 Розкладаю тканину і дивлюсь — що хочу зробити сьогодні (2 хвилини)" : "⚡ Сідаю за стіл, дивлюсь на план і нічого не роблю — просто присутня (2 хвилини)"), timerLeft === null ? /*#__PURE__*/React.createElement("button", {
-      onClick: () => startTimer(120),
-      style: {
-        width: "100%",
-        background: "rgba(200,168,64,0.15)",
-        border: "1px solid rgba(200,168,64,0.4)",
-        borderRadius: 8,
-        padding: "11px",
-        color: "#c8a840",
-        fontSize: 14,
-        fontWeight: 700,
-        cursor: "pointer"
-      }
-    }, "▶ Почати · 2 хв") : /*#__PURE__*/React.createElement("div", {
-      style: {
-        textAlign: "center"
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: 52,
-        fontWeight: 700,
-        color: timerDone ? "#4ab870" : "#c8a840",
-        fontFamily: "monospace",
-        letterSpacing: "0.05em",
-        marginBottom: 6
-      }
-    }, timerDone ? "✓ ГОТОВО" : fmtTimer(timerLeft)), /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: 11,
-        color: timerDone ? "#4ab870" : "#555"
-      }
-    }, timerRunning ? "Тримай фокус..." : timerDone ? "Таймер завершено" : ""))), (() => {
+    })), (() => {
       const sosActive = showSosAlert || sosQuestId && g.dailyQuests.some(q => q.id === sosQuestId && !q.done);
-      const canStart = timerDone && !sosActive;
+      const canStart = !sosActive;
       return /*#__PURE__*/React.createElement("button", {
         disabled: !canStart,
         onClick: () => {
@@ -11007,8 +10913,6 @@ function App() {
             lastSpoonsReminder: Date.now(),
             mana: bonus && bonus.mana > 0 ? p.mana + bonus.mana : p.mana
           }));
-          setTimerLeft(null);
-          setTimerDone(false);
           setSpoonsReminderType("ritual");
           setShowSpoonsReminder(true);
           if (bonus) {
@@ -11028,7 +10932,7 @@ function App() {
           cursor: canStart ? "pointer" : "not-allowed",
           transition: "all 0.3s"
         }
-      }, sosActive ? "🫘 Спочатку поповни енергію" : timerDone ? "⚡ Починаю роботу →" : "⚡ Починаю роботу (зачекай таймер)");
+      }, sosActive ? "🫘 Спочатку поповни енергію" : "⚡ Починаю роботу →");
     })()), !g.isDayOff && ph === "work" && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
       style: {
         display: "flex",
