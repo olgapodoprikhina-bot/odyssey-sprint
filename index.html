@@ -8617,8 +8617,8 @@ function App() {
     }
   }, notionSaving ? "⏳ Перевіряю..." : "🔗 Перевірити підключення"), /*#__PURE__*/React.createElement("button", {
     onClick: () => {
-      const token = (notionToken || "").trim();
-      const dbId = (notionDbId || "").trim();
+      const token = (notionToken || g.notion?.token || "").trim();
+      const dbId = (notionDbId || g.notion?.dbId || "").trim();
       if (!token) {
         toast_("Вкажи токен", "#e05555");
         return;
