@@ -70,9 +70,13 @@
 
   // Невелика кнопка входу/виходу поверх застосунку
   function mountAuthUI() {
+    const bar = document.getElementById('odyssey-bar') || (() => {
+      const b = document.createElement('div'); b.id = 'odyssey-bar';
+      b.style.cssText = 'position:fixed;top:calc(env(safe-area-inset-top,0px) + 6px);left:6px;z-index:99999;display:flex;gap:6px;align-items:flex-start;flex-wrap:wrap;max-width:calc(100vw - 12px);';
+      document.body.appendChild(b); return b; })();
     const el = document.createElement('div');
-    el.style.cssText = 'position:fixed;top:calc(env(safe-area-inset-top,0px) + 6px);left:6px;z-index:99999;font:12px system-ui,sans-serif;';
-    document.body.appendChild(el);
+    el.style.cssText = 'font:12px system-ui,sans-serif;';
+    bar.insertBefore(el, bar.firstChild);
     const css = 'border:1px solid #6a5820;background:#1a1810;color:#e0c060;border-radius:16px;padding:6px 12px;font:inherit;cursor:pointer;';
     let user = null, ready = false, open = false;
     const mk = (txt, fn) => { const b = document.createElement('button'); b.style.cssText = css; b.textContent = txt; b.onclick = fn; return b; };
@@ -297,9 +301,13 @@ function connect(){
 }
 
 function mountUI(){
+  const bar = document.getElementById("odyssey-bar") || (() => {
+    const b = document.createElement("div"); b.id = "odyssey-bar";
+    b.style.cssText = "position:fixed;top:calc(env(safe-area-inset-top,0px) + 6px);left:6px;z-index:99999;display:flex;gap:6px;align-items:flex-start;flex-wrap:wrap;max-width:calc(100vw - 12px);";
+    document.body.appendChild(b); return b; })();
   const el = document.createElement("div");
-  el.style.cssText = "position:fixed;top:calc(env(safe-area-inset-top,0px) + 6px);right:6px;z-index:99998;font:12px system-ui,sans-serif;text-align:right;";
-  document.body.appendChild(el);
+  el.style.cssText = "font:12px system-ui,sans-serif;";
+  bar.appendChild(el);
   const css = "border:1px solid #2a4a6a;background:#10181f;color:#7fb4e6;border-radius:16px;padding:6px 12px;font:inherit;cursor:pointer;";
   const mk = (t, fn) => { const b = document.createElement("button"); b.style.cssText = css; b.textContent = t; b.onclick = fn; return b; };
   let open = false;
@@ -311,7 +319,7 @@ function mountUI(){
     el.appendChild(mk(label, () => { open = !open; redraw(); }));
     if (open) {
       const box = document.createElement("div");
-      box.style.cssText = "margin-top:6px;display:flex;flex-direction:column;gap:6px;align-items:flex-end;";
+      box.style.cssText = "margin-top:6px;display:flex;flex-direction:column;gap:6px;align-items:flex-start;";
       box.appendChild(mk("Оновити зараз", () => flush()));
       box.appendChild(mk("Скопіювати посилання на файл", async () => {
         const id = localStorage.getItem(FILE_KEY);
