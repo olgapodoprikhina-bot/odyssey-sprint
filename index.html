@@ -125,7 +125,7 @@ const STATE_KEY = "odyssey_sprint_v4";
 // (токены, ключи, рефлексии, здоровье, настройки интеграций) в сводку попасть не может.
 // Чистая функция: не пишет и не читает ничего, поэтому безопасно тестируется отдельно.
 
-const SCHEMA = "secretary_snapshot_v1";
+const SCHEMA = "secretary_snapshot_v2";
 
 const pick = (o, keys) => {
   const r = {};
@@ -136,9 +136,70 @@ const pick = (o, keys) => {
 
 // Поля задачи. id сохраняем как есть, чтобы секретарь мог сопоставить с Todoist/Notion.
 const QUEST_KEYS = ["id", "name", "zone", "done", "mana", "projId", "weekQuestId",
-  "todoistId", "notionPageId", "notionProjName", "todoistSection", "dueDate", "fromWeek", "fromSprint"];
+  "todoistId", "notionPageId", "notionProjName", "todoistSection", "dueDate", "fromWeek", "fromSprint",
+  "carriedOver", "isSosQuest"];
 
 const quest = q => pick(q, QUEST_KEYS);
+
+
+const tl = a => (a || []).map(quest);
+const addDay = (date, n) => { const d = new Date(date + "T00:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+const eveningOf = (g, date) => ((g.reflectionHistory || {})[date] || {}).evening || "";
+const carriedOf = (qs, extra) => [...(qs || []).filter(q => !q.done && !q.isSosQuest), ...(extra || [])];
+
+// Попередній день, план наступного дня і останні дні — лише з даних, які застосунок уже зберігає.
+// Історичний стан завдань беремо з dayArchive (пишеться при переході на новий день), а не з сьогоднішніх статусів.
+function buildDays(g) {
+  const D = g.lastActiveDate || null;
+  const liveRefl = (g.eveningReflection || "").trim();
+  const liveFilled = !!((g.tomorrowActivity || "").trim() || (g.tomorrowPlan || "").trim() || g.tomorrowDayType);
+  const closedLive = !!(D && (liveRefl || liveFilled)); // вечір поточного стану вже заповнено
+  const archive = g.dayArchive || [];
+  const y = g.yesterdaySummary || null;
+  const arch = date => archive.find(a => a.date === date) || null;
+
+  const fromArchive = (a, refl) => ({
+    date: a.date, reflection: refl, tasksAvailable: true,
+    plannedTasks: tl(a.plannedTasks), completedTasks: tl(a.completedTasks),
+    unfinishedTasks: tl(a.unfinishedTasks), carriedTasks: tl(a.carriedTasks),
+    energy: a.energy ?? null, mode: a.mode ?? null });
+
+  let previousDay = null, nextDayPlan = null;
+  if (closedLive) {
+    previousDay = {
+      date: D, source: "live", closedAt: null, reflection: liveRefl, tasksAvailable: true,
+      plannedTasks: tl(g.dailyQuests), completedTasks: tl((g.dailyQuests || []).filter(q => q.done)),
+      unfinishedTasks: tl((g.dailyQuests || []).filter(q => !q.done)),
+      carriedTasks: tl(carriedOf(g.dailyQuests, g.carriedToTomorrow)),
+      energy: g.energy ?? null, mode: g.mode ?? null };
+    nextDayPlan = { date: addDay(D, 1), status: "for_next_day", plan: g.tomorrowPlan || "", dayType: g.tomorrowDayType || null,
+      startTime: g.tomorrowStartTime || null, firstActivity: g.tomorrowActivity || "", eveningActivity: g.eveningActivity || "" };
+  } else if (y && y.date) {
+    const a = arch(y.date);
+    const refl = eveningOf(g, y.date) || y.eveningReflection || "";
+    previousDay = a ? { source: "archive", closedAt: null, ...fromArchive(a, refl) }
+      : { date: y.date, source: "summary", closedAt: null, reflection: refl, tasksAvailable: false,
+          counts: { done: y.questsDone ?? null, total: y.questsTotal ?? null, carried: y.questsCarried ?? null },
+          energy: y.energy ?? null, mode: y.mode ?? null };
+    nextDayPlan = { date: D, status: "for_current_day", plan: y.tomorrowPlan ?? null, dayType: y.tomorrowDayType ?? null,
+      startTime: y.tomorrowStartTime ?? null, firstActivity: y.tomorrowActivity ?? null, eveningActivity: y.eveningActivity ?? null };
+  }
+
+  // recentDays: до 7 останніх закритих днів
+  const byDate = {};
+  Object.keys(g.reflectionHistory || {}).forEach(d => {
+    const ev = eveningOf(g, d); if (ev) byDate[d] = { date: d, reflection: ev, tasksAvailable: false };
+  });
+  archive.forEach(a => { byDate[a.date] = fromArchive(a, eveningOf(g, a.date)); });
+  if (y && y.date && !arch(y.date)) {
+    byDate[y.date] = { ...(byDate[y.date] || { date: y.date, reflection: y.eveningReflection || "" }), tasksAvailable: false,
+      counts: { done: y.questsDone ?? null, total: y.questsTotal ?? null, carried: y.questsCarried ?? null }, energy: y.energy ?? null };
+  }
+  if (closedLive && previousDay) byDate[D] = (({ source, closedAt, ...rest }) => rest)(previousDay);
+  const recentDays = Object.keys(byDate).sort().reverse().slice(0, 7).map(d => byDate[d]);
+
+  return { previousDay, nextDayPlan, recentDays };
+}
 
 function buildSecretarySnapshot(g, meta = {}) {
   // meta.sourceUpdatedAt — метка времени последнего сохранения (мс), meta.now — для тестов
@@ -161,6 +222,7 @@ function buildSecretarySnapshot(g, meta = {}) {
   }
 
   const daily = (g.dailyQuests || []).map(quest);
+  const days = buildDays(g);
 
   return {
     schema: SCHEMA,
@@ -192,6 +254,9 @@ function buildSecretarySnapshot(g, meta = {}) {
       fromOldSprints: (g.carryoverPool || []).map(quest),
     },
     tomorrow: pick(g, ["tomorrowPlan", "tomorrowDayType", "tomorrowStartTime", "tomorrowActivity", "eveningActivity"]),
+    previousDay: days.previousDay,
+    nextDayPlan: days.nextDayPlan,
+    recentDays: days.recentDays,
     projects,
   };
 }
@@ -2082,8 +2147,11 @@ function App() {
             // Вечірній план і завтра
             eveningActivity: (s.eveningActivity || "").trim(),
             tomorrowDayType: s.tomorrowDayType || null,
+            tomorrowPlan: (s.tomorrowPlan || "").trim(),
             tomorrowActivity: (s.tomorrowActivity || "").trim(),
             tomorrowStartTime: s.tomorrowStartTime || "09:00",
+            energy: s.energy ?? null,
+            mode: s.mode ?? null,
             isDayOff: !!s.isDayOff
           };
           // Dragon: відкат якщо будь-яка з умов не виконана (і не вихідний)
@@ -2144,9 +2212,20 @@ function App() {
               evening: summary.eveningReflection
             };
           }
+          const qLite = q => ({ id: q.id, name: q.name, zone: q.zone, projId: q.projId, todoistId: q.todoistId, notionPageId: q.notionPageId, isSosQuest: !!q.isSosQuest });
+          const dayEntry = {
+            date: summary.date,
+            energy: s.energy ?? null,
+            mode: s.mode ?? null,
+            plannedTasks: s.dailyQuests.map(qLite),
+            completedTasks: s.dailyQuests.filter(q => q.done).map(qLite),
+            unfinishedTasks: s.dailyQuests.filter(q => !q.done).map(qLite),
+            carriedTasks: [...s.dailyQuests.filter(q => !q.done && !q.isSosQuest), ...(s.carriedToTomorrow || [])].map(qLite)
+          };
           const updated = {
             ...s,
             lastActiveDate: today,
+            dayArchive: [...(s.dayArchive || []).filter(d => d.date !== summary.date), dayEntry].slice(-14),
             dailyQuests: carriedQuests,
             microDone: [],
             dailyHabits: [],
