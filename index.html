@@ -21,6 +21,8 @@
   import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
   import { getFirestore, doc, setDoc, getDoc, onSnapshot }
     from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+  import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut }
+    from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 
   const firebaseConfig = {
     apiKey: "AIzaSyAuC3AqNmYOR1hSD0WkN5V22vC7RIHzI6A",
@@ -33,9 +35,11 @@
 
   const app = initializeApp(firebaseConfig);
   const db = getFirestore(app);
+  const auth = getAuth(app);
   const USER_DOC = 'users/olga';
 
   window.fbSave = async function(data) {
+    if (!auth.currentUser) return; // без входу через Google в хмару не пишемо
     try {
       await setDoc(doc(db, USER_DOC), data, { merge: true });
     } catch(e) { console.warn('fbSave error:', e); }
@@ -53,6 +57,53 @@
       if(snap.exists()) onChange(snap.data());
     }, e => console.warn('fbSubscribe error:', e));
   };
+
+  // Чекає, доки користувач увійде через Google (якщо вже входила — спрацює одразу)
+  window.fbWaitUser = () => new Promise(resolve => {
+    let off = null;
+    off = onAuthStateChanged(auth, u => {
+      if (!u) return;
+      resolve(u);
+      setTimeout(() => { if (off) off(); }, 0);
+    });
+  });
+
+  // Невелика кнопка входу/виходу поверх застосунку
+  function mountAuthUI() {
+    const el = document.createElement('div');
+    el.style.cssText = 'position:fixed;top:calc(env(safe-area-inset-top,0px) + 6px);left:6px;z-index:99999;font:12px system-ui,sans-serif;';
+    document.body.appendChild(el);
+    const css = 'border:1px solid #6a5820;background:#1a1810;color:#e0c060;border-radius:16px;padding:6px 12px;font:inherit;cursor:pointer;';
+    let user = null, ready = false, open = false;
+    const mk = (txt, fn) => { const b = document.createElement('button'); b.style.cssText = css; b.textContent = txt; b.onclick = fn; return b; };
+    const signIn = async () => {
+      try { await signInWithPopup(auth, new GoogleAuthProvider()); }
+      catch (e) {
+        if (e.code === 'auth/popup-closed-by-user' || e.code === 'auth/cancelled-popup-request') return;
+        alert(e.code === 'auth/popup-blocked'
+          ? 'Браузер заблокував вікно входу. Дозволь спливаючі вікна для цього сайту й спробуй ще раз.'
+          : 'Не вдалося увійти: ' + (e.code || e.message));
+      }
+    };
+    const draw = () => {
+      el.textContent = '';
+      if (!ready) return;
+      if (!user) { el.appendChild(mk('☁️ Увійти через Google', signIn)); return; }
+      el.appendChild(mk(open ? '☁️ ✓ ▴' : '☁️ ✓', () => { open = !open; draw(); }));
+      if (open) {
+        const box = document.createElement('div');
+        box.style.cssText = 'margin-top:6px;background:#1a1810;border:1px solid #6a5820;border-radius:10px;padding:8px 10px;color:#e0c060;';
+        const who = document.createElement('div');
+        who.textContent = user.email || 'Увійшла';
+        who.style.marginBottom = '6px';
+        box.appendChild(who);
+        box.appendChild(mk('Вийти', async () => { await signOut(auth); location.reload(); }));
+        el.appendChild(box);
+      }
+    };
+    onAuthStateChanged(auth, u => { user = u; ready = true; draw(); });
+  }
+  if (document.body) mountAuthUI(); else addEventListener('DOMContentLoaded', mountAuthUI);
 
   console.log('Firebase initialized: odyssey-sprint');
 </script>
@@ -1988,20 +2039,23 @@ function App() {
 
     // Firebase: завантажити якщо новіші, підписатись на зміни
     let unsub = null;
+    window.__odysseyCloudPending = true; // у хмару не пишемо, доки не увійшли й не звірили її дані
     (async () => {
       // Firebase-модуль ініціалізується асинхронно (import з мережі) —
       // чекаємо на нього замість того, щоб одразу здатись, інакше
       // на швидкому завантаженні сторінки синхронізація мовчки не увімкнеться.
       let tries = 0;
-      while ((!window.fbLoad || !window.fbSubscribe) && tries < 50) {
+      while ((!window.fbLoad || !window.fbSubscribe || !window.fbWaitUser) && tries < 50) {
         await new Promise(r => setTimeout(r, 100));
         tries++;
       }
-      if (!window.fbLoad || !window.fbSubscribe) {
+      if (!window.fbLoad || !window.fbSubscribe || !window.fbWaitUser) {
         console.warn('Firebase: не ініціалізувався за 5с — синхронізація вимкнена цього разу');
         window.__odysseyCloudPending = false;
         return;
       }
+      // Синхронізація стартує лише після входу через Google
+      await window.fbWaitUser();
       try {
         const remote = await window.fbLoad();
         if (remote && remote[SAVE_KEY] && remote._updatedAt) {
