@@ -108,6 +108,229 @@
   console.log('Firebase initialized: odyssey-sprint');
 </script>
 
+<script type="module" id="secretary-init">
+// Утренній секретар: збирає зведення (без токенів) і кладе його файлом у Google Drive власниці.
+const CLIENT_ID = "952634288843-nbr5bgt61bq5mjn9kmbqsqfkid7qva4n.apps.googleusercontent.com";
+const SCOPE = "https://www.googleapis.com/auth/drive.file";
+const FILE_NAME = "secretary_snapshot_v1.json";
+const FILE_KEY = "odyssey_secretary_file_id";
+const TOKEN_KEY = "odyssey_secretary_token";
+const STATE_KEY = "odyssey_sprint_v4";
+// secretary_snapshot.js — сборка сводки для утреннего секретаря из состояния Odyssey Sprint.
+// ВАЖНО: белый список полей. Берётся только то, что перечислено ниже; всё остальное
+// (токены, ключи, рефлексии, здоровье, настройки интеграций) в сводку попасть не может.
+// Чистая функция: не пишет и не читает ничего, поэтому безопасно тестируется отдельно.
+
+const SCHEMA = "secretary_snapshot_v1";
+
+const pick = (o, keys) => {
+  const r = {};
+  if (!o || typeof o !== "object") return r;
+  for (const k of keys) if (o[k] !== undefined) r[k] = o[k];
+  return r;
+};
+
+// Поля задачи. id сохраняем как есть, чтобы секретарь мог сопоставить с Todoist/Notion.
+const QUEST_KEYS = ["id", "name", "zone", "done", "mana", "projId", "weekQuestId",
+  "todoistId", "notionPageId", "notionProjName", "todoistSection", "dueDate", "fromWeek", "fromSprint"];
+
+const quest = q => pick(q, QUEST_KEYS);
+
+function buildSecretarySnapshot(g, meta = {}) {
+  // meta.sourceUpdatedAt — метка времени последнего сохранения (мс), meta.now — для тестов
+  const now = meta.now || Date.now();
+  const cw = Math.max(1, Math.min(3, g.currentWeek || 1));
+
+  const projects = {};
+  for (const pid of ["A", "B", "C", "D"]) {
+    const p = (g.projects || {})[pid];
+    if (!p) continue;
+    const weeks = p.weeks || [];
+    projects[pid] = {
+      id: p.id || pid,
+      name: p.name || "",
+      goal: p.goal || "",
+      milestones: weeks.map(w => ({ week: w.num, milestone: w.milestone || "" })),
+      currentWeekMilestone: (weeks[cw - 1] || {}).milestone || "",
+      currentWeekQuests: ((weeks[cw - 1] || {}).quests || []).map(quest),
+    };
+  }
+
+  const daily = (g.dailyQuests || []).map(quest);
+
+  return {
+    schema: SCHEMA,
+    generatedAt: new Date(now).toISOString(),
+    sourceUpdatedAt: meta.sourceUpdatedAt ? new Date(meta.sourceUpdatedAt).toISOString() : null,
+    lastActiveDate: g.lastActiveDate || null,
+    sprint: {
+      number: g.sprintNum ?? null,
+      started: !!g.sprintStarted,
+      startDate: g.sprintStartDate || null,
+      currentWeek: cw,
+      weekStartDate: g.weekStartDate || null,
+    },
+    today: {
+      dayPhase: g.dayPhase || null,
+      workType: g.workType || null,
+      isDayOff: !!g.isDayOff,
+      workFinished: !!g.workFinished,
+      energy: g.energy ?? null,
+      mode: g.mode ?? null,
+      spoons: g.spoons ? pick(g.spoons, ["current", "max"]) : null,
+      mana: g.mana ?? null,
+      dailyQuests: daily,
+      doneCount: daily.filter(q => q.done).length,
+      openCount: daily.filter(q => !q.done).length,
+    },
+    carried: {
+      toTomorrow: (g.carriedToTomorrow || []).map(quest),
+      fromOldSprints: (g.carryoverPool || []).map(quest),
+    },
+    tomorrow: pick(g, ["tomorrowPlan", "tomorrowDayType", "tomorrowStartTime", "tomorrowActivity", "eveningActivity"]),
+    projects,
+  };
+}
+
+// Страховка: проверка, что в сводку не просочились секреты из состояния.
+// Возвращает список найденных проблем (пустой список = всё чисто).
+function findLeaks(snapshot, g) {
+  const json = JSON.stringify(snapshot);
+  const problems = [];
+  const secrets = [g?.todoist?.token, g?.notion?.token, g?.notion?.dbId].filter(s => s && String(s).length >= 6);
+  for (const s of secrets) if (json.includes(String(s))) problems.push("найден секрет из настроек интеграций");
+  if (/token|apikey|secret|password/i.test(Object.keys(JSON.parse(json)).join(" "))) problems.push("секретное имя поля верхнего уровня");
+  if (/"(token|apiKey|secret|password)"\s*:/i.test(json)) problems.push("в JSON есть поле token/apiKey/secret/password");
+  return problems;
+}
+
+let latest = null, latestTs = null, timer = null, tokenClient = null, status = "idle", lastOk = null, redraw = () => {};
+
+function getToken(){
+  try { const t = JSON.parse(sessionStorage.getItem(TOKEN_KEY) || "null"); if (t && t.exp > Date.now()) return t.v; } catch (e) {}
+  return null;
+}
+function setToken(v, sec){
+  try { sessionStorage.setItem(TOKEN_KEY, JSON.stringify({ v, exp: Date.now() + (sec - 120) * 1000 })); } catch (e) {}
+}
+function source(){
+  if (latest) return { g: latest, ts: latestTs };
+  try {
+    const raw = localStorage.getItem(STATE_KEY);
+    if (raw) return { g: JSON.parse(raw), ts: parseInt(localStorage.getItem(STATE_KEY + "_ts") || "0") || null };
+  } catch (e) {}
+  return null;
+}
+
+async function upload(json, token){
+  const auth = { Authorization: "Bearer " + token };
+  const chk = r => { if (r.status === 401 || r.status === 403) throw new Error("auth"); };
+  let id = localStorage.getItem(FILE_KEY);
+  if (!id) {
+    const q = encodeURIComponent("name='" + FILE_NAME + "' and trashed=false");
+    const r = await fetch("https://www.googleapis.com/drive/v3/files?q=" + q + "&fields=files(id)&pageSize=1", { headers: auth });
+    chk(r);
+    if (r.ok) { const j = await r.json(); if (j.files && j.files[0]) id = j.files[0].id; }
+  }
+  if (id) {
+    const r = await fetch("https://www.googleapis.com/upload/drive/v3/files/" + id + "?uploadType=media", {
+      method: "PATCH", headers: { ...auth, "Content-Type": "application/json" }, body: json, keepalive: true });
+    chk(r);
+    if (r.ok) { localStorage.setItem(FILE_KEY, id); return; }
+    if (r.status !== 404) throw new Error("upload " + r.status);
+    localStorage.removeItem(FILE_KEY);
+  }
+  const b = "odyssey" + Date.now();
+  const body = "--" + b + "\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n" +
+    JSON.stringify({ name: FILE_NAME, mimeType: "application/json" }) +
+    "\r\n--" + b + "\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n" + json + "\r\n--" + b + "--";
+  const r = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id", {
+    method: "POST", headers: { ...auth, "Content-Type": "multipart/related; boundary=" + b }, body, keepalive: true });
+  chk(r);
+  if (!r.ok) throw new Error("create " + r.status);
+  const j = await r.json();
+  localStorage.setItem(FILE_KEY, j.id);
+}
+
+async function flush(){
+  timer = null;
+  const token = getToken();
+  if (!token) { status = "need"; redraw(); return; }
+  const src = source();
+  if (!src) return;
+  const snap = buildSecretarySnapshot(src.g, { sourceUpdatedAt: src.ts });
+  const leaks = findLeaks(snap, src.g);
+  if (leaks.length) { status = "leak"; console.warn("Secretary: зведення заблоковано:", leaks); redraw(); return; }
+  try {
+    await upload(JSON.stringify(snap, null, 1), token);
+    status = "ok"; lastOk = new Date();
+  } catch (e) {
+    if (e && e.message === "auth") { try { sessionStorage.removeItem(TOKEN_KEY); } catch (x) {} status = "need"; }
+    else status = "error";
+    console.warn("Secretary upload error:", e);
+  }
+  redraw();
+}
+
+window.secretarySync = (g, ts) => {
+  latest = g; latestTs = ts || Date.now();
+  if (timer) clearTimeout(timer);
+  timer = setTimeout(flush, 15000);
+};
+window.__secretaryFlush = flush;
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden" && timer) { clearTimeout(timer); flush(); }
+});
+
+function connect(){
+  if (!(window.google && google.accounts && google.accounts.oauth2)) { alert("Бібліотека Google ще завантажується. Спробуй за кілька секунд."); return; }
+  if (!tokenClient) tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: CLIENT_ID, scope: SCOPE,
+    callback: r => {
+      if (r.error) { status = "error"; redraw(); return; }
+      setToken(r.access_token, parseInt(r.expires_in) || 3600);
+      flush();
+    },
+    error_callback: () => { status = "need"; redraw(); }
+  });
+  tokenClient.requestAccessToken({ prompt: "" });
+}
+
+function mountUI(){
+  const el = document.createElement("div");
+  el.style.cssText = "position:fixed;top:calc(env(safe-area-inset-top,0px) + 6px);right:6px;z-index:99998;font:12px system-ui,sans-serif;text-align:right;";
+  document.body.appendChild(el);
+  const css = "border:1px solid #2a4a6a;background:#10181f;color:#7fb4e6;border-radius:16px;padding:6px 12px;font:inherit;cursor:pointer;";
+  const mk = (t, fn) => { const b = document.createElement("button"); b.style.cssText = css; b.textContent = t; b.onclick = fn; return b; };
+  let open = false;
+  redraw = () => {
+    el.textContent = "";
+    if (!getToken()) { el.appendChild(mk(status === "need" ? "📋 ⚠ Оновити доступ" : "📋 Підключити секретаря", connect)); return; }
+    const label = status === "error" ? "📋 ⚠ Помилка" : status === "leak" ? "📋 ⛔ Заблоковано"
+      : lastOk ? "📋 ✓ " + lastOk.toTimeString().slice(0, 5) : "📋 ✓";
+    el.appendChild(mk(label, () => { open = !open; redraw(); }));
+    if (open) {
+      const box = document.createElement("div");
+      box.style.cssText = "margin-top:6px;display:flex;flex-direction:column;gap:6px;align-items:flex-end;";
+      box.appendChild(mk("Оновити зараз", () => flush()));
+      box.appendChild(mk("Скопіювати посилання на файл", async () => {
+        const id = localStorage.getItem(FILE_KEY);
+        if (!id) { alert("Файл ще не створено. Натисни «Оновити зараз»."); return; }
+        const url = "https://drive.google.com/file/d/" + id + "/view";
+        try { await navigator.clipboard.writeText(url); } catch (e) { prompt("Скопіюй посилання:", url); }
+      }));
+      el.appendChild(box);
+    }
+  };
+  redraw();
+}
+if (document.body) mountUI(); else addEventListener("DOMContentLoaded", mountUI);
+
+const gs = document.createElement("script");
+gs.src = "https://accounts.google.com/gsi/client"; gs.async = true;
+document.head.appendChild(gs);
+</script>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
@@ -2129,6 +2352,7 @@ function App() {
       const ts = Date.now();
       localStorage.setItem(SAVE_KEY, json);
       localStorage.setItem(SAVE_KEY + "_ts", String(ts));
+      try { if (window.secretarySync) window.secretarySync(s, ts); } catch {}
       if (window.fbSave && !window.__odysseyCloudPending && !(opts && opts.skipFirebase)) window.fbSave({
         [SAVE_KEY]: json,
         _updatedAt: ts
