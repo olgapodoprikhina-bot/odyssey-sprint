@@ -1917,14 +1917,12 @@ function App() {
   const [bankImages, setBankImages] = useState([]);
   const [now, setNow] = useState(new Date());
   const [showRetreatFlash, setShowRetreatFlash] = useState(false);
-  const [showSpoonsReminder, setShowSpoonsReminder] = useState(false);
   const [showSosAlert, setShowSosAlert] = useState(false);
   const [showDayOffModal, setShowDayOffModal] = useState(false);
   const [sosQuestId, setSosQuestId] = useState(null);
   const [showDueTodayAlert, setShowDueTodayAlert] = useState(false);
   const dueAlertShownRef = useRef(false); // щоб алерт показався 1 раз за ранок
   const [showTomorrowTasksAlert, setShowTomorrowTasksAlert] = useState(false);
-  const [spoonsReminderType, setSpoonsReminderType] = useState("auto");
   const [startBonus, setStartBonus] = useState(null); // {level,mana} | null // для лічильника 9:00
   const [eveningBonus, setEveningBonus] = useState(null); // аналог для 18:30
   const tRef = useRef(null);
@@ -2516,25 +2514,6 @@ function App() {
       clearInterval(iv);
     };
   }, [loaded, g.todoist?.token, g.todoist?.lastMorningCheck]);
-
-  // Нагадування про фасолини кожні 2 години
-  const REMINDER_INTERVAL = 2 * 60 * 60 * 1000; // 2 год в мс
-  useEffect(() => {
-    if (!loaded) return;
-    const check = () => {
-      const last = g.lastSpoonsReminder || 0;
-      const now = Date.now();
-      if (now - last >= REMINDER_INTERVAL) {
-        setSpoonsReminderType("auto");
-        setShowSpoonsReminder(true);
-      }
-    };
-    // Перевірити одразу при вході (якщо пройшло 2+ год)
-    check();
-    // Потім кожні 5 хвилин перевіряти
-    const t = setInterval(check, 5 * 60 * 1000);
-    return () => clearInterval(t);
-  }, [loaded, g.lastSpoonsReminder]);
 
   // Алерт «Задачі на сьогодні / прострочені» — показати ПІСЛЯ вибору режиму дня,
   // тобто коли вже з'явилась надпис «Готово! Переходь до Квестів» (g.energy && g.mode).
@@ -11275,11 +11254,8 @@ function App() {
           upd(p => ({
             ...p,
             dayPhase: "work",
-            lastSpoonsReminder: Date.now(),
             mana: bonus && bonus.mana > 0 ? p.mana + bonus.mana : p.mana
           }));
-          setSpoonsReminderType("ritual");
-          setShowSpoonsReminder(true);
           if (bonus) {
             setStartBonus(bonus);
             setTimeout(() => setStartBonus(null), 2600);
@@ -18196,232 +18172,7 @@ function App() {
       color: "#888",
       marginTop: 8
     }
-  }, "Чим плануєш зайнятись? 🌿"))), showSpoonsReminder && (() => {
-    const sp = g.spoons?.current ?? 10;
-    const mx = g.spoons?.max ?? 10;
-    const low = sp < 5;
-    const dismiss = () => {
-      upd(p => ({
-        ...p,
-        lastSpoonsReminder: Date.now()
-      }));
-      setShowSpoonsReminder(false);
-    };
-    return /*#__PURE__*/React.createElement("div", {
-      style: {
-        position: "fixed",
-        inset: 0,
-        zIndex: 9998,
-        background: "rgba(0,0,0,0.75)",
-        display: "flex",
-        alignItems: "flex-end",
-        justifyContent: "center"
-      },
-      onClick: dismiss
-    }, /*#__PURE__*/React.createElement("div", {
-      onClick: e => e.stopPropagation(),
-      style: {
-        width: "100%",
-        maxWidth: 480,
-        background: "#161921",
-        borderTop: "1px solid #252a35",
-        borderRadius: "20px 20px 0 0",
-        padding: "20px 20px 36px",
-        display: "flex",
-        flexDirection: "column",
-        gap: 14
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      style: {
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center"
-      }
-    }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: 15,
-        fontWeight: 700,
-        color: "#f0ece4"
-      }
-    }, spoonsReminderType === "ritual" ? "🌅 Ранковий запас енергії" : "🫘 Скільки фасолин зараз?"), /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: 11,
-        color: "#555",
-        marginTop: 2
-      }
-    }, spoonsReminderType === "ritual" ? "Ти вказала " + sp + " фасолин на початок дня — актуально?" : "Нагадування кожні 2 години")), /*#__PURE__*/React.createElement("button", {
-      onClick: dismiss,
-      style: {
-        background: "transparent",
-        border: "none",
-        color: "#444",
-        fontSize: 22,
-        cursor: "pointer",
-        lineHeight: 1
-      }
-    }, "×")), /*#__PURE__*/React.createElement("div", {
-      style: {
-        textAlign: "center"
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: 48,
-        fontWeight: 900,
-        color: low ? "#d4804a" : "#4ab870",
-        lineHeight: 1
-      }
-    }, sp), /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: 13,
-        color: "#555"
-      }
-    }, "з ", mx, " фасолин")), /*#__PURE__*/React.createElement("div", {
-      style: {
-        display: "flex",
-        gap: 4
-      }
-    }, Array.from({
-      length: mx
-    }, (_, i) => /*#__PURE__*/React.createElement("div", {
-      key: i,
-      style: {
-        flex: 1,
-        height: 16,
-        borderRadius: 8,
-        background: i < sp ? low ? "#d4804a" : "#4ab870" : "#1e2028",
-        border: "1px solid " + (i < sp ? low ? "#d4804a44" : "#4ab87044" : "#252a35"),
-        transition: "all 0.2s"
-      }
-    }))), /*#__PURE__*/React.createElement("div", {
-      style: {
-        display: "grid",
-        gridTemplateColumns: "1fr 1fr",
-        gap: 8
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      style: {
-        display: "flex",
-        flexDirection: "column",
-        gap: 6
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: 10,
-        color: "#555",
-        fontFamily: "monospace",
-        textTransform: "uppercase",
-        letterSpacing: "0.08em",
-        marginBottom: 2
-      }
-    }, "Витратити"), [{
-      l: "−1 Легка робота",
-      n: 1
-    }, {
-      l: "−2 Важка робота",
-      n: 2
-    }, {
-      l: "−2 Стрес/конфлікт",
-      n: 2
-    }, {
-      l: "−1 Гра 30хв",
-      n: 1
-    }, {
-      l: "−3 Гіперфокус",
-      n: 3
-    }].map(b => /*#__PURE__*/React.createElement("button", {
-      key: b.l,
-      onClick: () => upd(p => ({
-        ...p,
-        spoons: {
-          ...p.spoons,
-          current: Math.max(0, (p.spoons?.current ?? 10) - b.n)
-        }
-      })),
-      disabled: sp === 0,
-      style: {
-        background: "rgba(212,128,74,0.1)",
-        border: "1px solid rgba(212,128,74,0.3)",
-        borderRadius: 8,
-        padding: "8px",
-        color: "#d4804a",
-        fontSize: 12,
-        fontWeight: 600,
-        cursor: "pointer",
-        opacity: sp === 0 ? 0.4 : 1
-      }
-    }, b.l))), /*#__PURE__*/React.createElement("div", {
-      style: {
-        display: "flex",
-        flexDirection: "column",
-        gap: 6
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: 10,
-        color: "#555",
-        fontFamily: "monospace",
-        textTransform: "uppercase",
-        letterSpacing: "0.08em",
-        marginBottom: 2
-      }
-    }, "Поповнити"), [{
-      l: "+1 Відпочинок 20хв",
-      n: 1
-    }, {
-      l: "+2 Прогулянка/їжа",
-      n: 2
-    }, {
-      l: "+1 Завершила задачу",
-      n: 1
-    }, {
-      l: "+2 Хороший сон",
-      n: 2
-    }].map(b => /*#__PURE__*/React.createElement("button", {
-      key: b.l,
-      onClick: () => upd(p => ({
-        ...p,
-        spoons: {
-          ...p.spoons,
-          current: Math.min(p.spoons?.max ?? 10, (p.spoons?.current ?? 10) + b.n)
-        }
-      })),
-      disabled: sp >= mx,
-      style: {
-        background: "rgba(74,184,112,0.1)",
-        border: "1px solid rgba(74,184,112,0.3)",
-        borderRadius: 8,
-        padding: "8px",
-        color: "#4ab870",
-        fontSize: 12,
-        fontWeight: 600,
-        cursor: "pointer",
-        opacity: sp >= mx ? 0.4 : 1
-      }
-    }, b.l)))), low && /*#__PURE__*/React.createElement("div", {
-      style: {
-        background: "rgba(212,128,74,0.1)",
-        border: "1px solid rgba(212,128,74,0.3)",
-        borderRadius: 8,
-        padding: "10px 12px",
-        fontSize: 12,
-        color: "#d4804a",
-        lineHeight: 1.5,
-        textAlign: "center"
-      }
-    }, "⚠️ Мало ресурсу — відпочинь перед наступним квестом"), /*#__PURE__*/React.createElement("button", {
-      onClick: dismiss,
-      style: {
-        background: "rgba(74,184,112,0.15)",
-        border: "1px solid rgba(74,184,112,0.4)",
-        borderRadius: 10,
-        padding: "12px",
-        color: "#4ab870",
-        fontSize: 14,
-        fontWeight: 700,
-        cursor: "pointer"
-      }
-    }, "✓ Зрозуміло")));
-  })(), showRetreatFlash && /*#__PURE__*/React.createElement("div", {
+  }, "Чим плануєш зайнятись? 🌿"))), showRetreatFlash && /*#__PURE__*/React.createElement("div", {
     className: "dragon-flash-overlay"
   }, /*#__PURE__*/React.createElement("div", {
     style: {
