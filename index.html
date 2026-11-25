@@ -1,6 +1,23 @@
 <!DOCTYPE html>
 <html lang="uk">
 <head>
+<script>
+// Діагностика: показує помилку на екрані замість білої сторінки
+(function(){
+  function show(msg){
+    try{
+      var d=document.getElementById('odyssey-err');
+      if(!d){d=document.createElement('pre');d.id='odyssey-err';
+        d.style.cssText='position:fixed;left:0;right:0;bottom:0;max-height:50vh;overflow:auto;margin:0;padding:12px;background:#3a1010;color:#ffb4b4;font:12px/1.4 monospace;z-index:99999;white-space:pre-wrap';
+        (document.body||document.documentElement).appendChild(d);}
+      d.textContent+=msg+'\n\n';
+    }catch(e){}
+  }
+  window.addEventListener('error',function(e){show('ERROR: '+e.message+(e.filename?'\n'+e.filename+':'+e.lineno:''));});
+  window.addEventListener('unhandledrejection',function(e){show('PROMISE: '+(e.reason&&(e.reason.stack||e.reason.message)||e.reason));});
+  window.__odysseyShowErr=show;
+})();
+</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>Одіссея · Спринт</title>
@@ -125,7 +142,7 @@ const STATE_KEY = "odyssey_sprint_v4";
 // (токены, ключи, рефлексии, здоровье, настройки интеграций) в сводку попасть не может.
 // Чистая функция: не пишет и не читает ничего, поэтому безопасно тестируется отдельно.
 
-const SCHEMA = "secretary_snapshot_v2";
+const SCHEMA = "secretary_snapshot_v3";
 
 const pick = (o, keys) => {
   const r = {};
@@ -137,7 +154,7 @@ const pick = (o, keys) => {
 // Поля задачи. id сохраняем как есть, чтобы секретарь мог сопоставить с Todoist/Notion.
 const QUEST_KEYS = ["id", "name", "zone", "done", "mana", "projId", "weekQuestId",
   "todoistId", "notionPageId", "notionProjName", "todoistSection", "dueDate", "fromWeek", "fromSprint",
-  "carriedOver", "isSosQuest"];
+  "carriedOver", "isSosQuest", "carriedFrom"];
 
 const quest = q => pick(q, QUEST_KEYS);
 
@@ -201,6 +218,68 @@ function buildDays(g) {
   return { previousDay, nextDayPlan, recentDays };
 }
 
+// ── v3: підсумок попереднього тижня, історія тижнів, перенесене ──
+const HISTORY_MAX = 12;
+const histRow = (sprintNum, week, o) => ({
+  sprintNum: sprintNum ?? null, week, closedAt: o.closedAt || null,
+  pct: o.pct ?? null, grade: o.grade ?? null,
+  done: typeof o.done === "number" ? o.done : null, total: o.total ?? null,
+  selfScore: o.selfScore ?? null, carriedCount: o.carriedCount ?? null, source: o.source });
+
+function buildWeekly(g, cw) {
+  const arch = g.weekArchive || [];
+  const rows = {};
+  // 1) старі спринти: зберігають лише оцінки (без списків завдань)
+  (g.archive || []).forEach(a => (a.weekReflections || []).forEach((r, i) => {
+    if (r && (r.pct != null || r.grade)) rows[(a.sprintNum || 0) + "-" + (i + 1)] = histRow(a.sprintNum, i + 1, { ...r, source: "sprintArchive" });
+  }));
+  // 2) поточний спринт: закриті тижні до поточного
+  for (let w = 1; w < cw; w++) {
+    const r = (g.weekReflections || [])[w - 1];
+    if (r && (r.pct != null || r.grade)) rows[(g.sprintNum || 1) + "-" + w] = histRow(g.sprintNum || 1, w, { ...r, source: "state" });
+  }
+  // 3) повні записи, зроблені при закритті тижня (мають пріоритет)
+  arch.forEach(e => {
+    const carriedCount = Object.values(e.projects || {}).reduce((s, p) => s + (p.quests || []).filter(q => q.carried).length, 0);
+    rows[e.sprintNum + "-" + e.week] = histRow(e.sprintNum, e.week, { ...e.score, closedAt: e.closedAt, carriedCount, source: "weekArchive" });
+  });
+  const weeklyHistory = Object.values(rows).sort((a, b) => (a.sprintNum - b.sprintNum) || (a.week - b.week)).slice(-HISTORY_MAX);
+
+  let previousWeek = null;
+  const last = arch[arch.length - 1];
+  if (last) {
+    previousWeek = { source: "weekArchive", sprintNum: last.sprintNum, week: last.week, closedAt: last.closedAt,
+      weekStartDate: last.weekStartDate || null, score: last.score, reflection: last.reflection,
+      projects: last.projects, closingDay: last.closingDay };
+  } else if (cw > 1) {
+    const pw = cw - 1, r = (g.weekReflections || [])[pw - 1];
+    if (r && (r.pct != null || r.grade)) {
+      const projs = {};
+      ["A", "B", "C", "D"].forEach(pid => {
+        const p = (g.projects || {})[pid]; if (!p) return;
+        const wk = (p.weeks || [])[pw - 1] || {};
+        projs[pid] = { name: p.name || "", milestone: wk.milestone || "",
+          quests: (wk.quests || []).map(q => ({ id: q.id, name: q.name, done: !!q.done, isMilestone: !!q.isMilestone })) };
+      });
+      previousWeek = { source: "state", sprintNum: g.sprintNum ?? null, week: pw, closedAt: null, weekStartDate: null,
+        score: { pct: r.pct ?? null, grade: r.grade ?? null, done: typeof r.done === "number" ? r.done : null, total: r.total ?? null, selfScore: r.selfScore ?? null },
+        reflection: { mood: r.mood || "", wentWell: null, improve: r.improve || "", overall: r.overall || "" },
+        projects: projs, closingDay: null };
+    }
+  }
+
+  // Перенесене з попереднього тижня (або з попереднього спринту, якщо це тиждень 1)
+  const key = cw > 1 ? "W" + (cw - 1) : "S" + ((g.sprintNum || 1) - 1);
+  const carriedFromPreviousWeek = [];
+  ["A", "B", "C", "D"].forEach(pid => {
+    const p = (g.projects || {})[pid]; if (!p) return;
+    (((p.weeks || [])[cw - 1] || {}).quests || []).forEach(q => {
+      if (q.carriedFrom === key && !q.isMilestone) carriedFromPreviousWeek.push({ ...quest(q), projId: q.projId || pid });
+    });
+  });
+  return { previousWeek, weeklyHistory, carriedFromPreviousWeek };
+}
+
 function buildSecretarySnapshot(g, meta = {}) {
   // meta.sourceUpdatedAt — метка времени последнего сохранения (мс), meta.now — для тестов
   const now = meta.now || Date.now();
@@ -223,6 +302,7 @@ function buildSecretarySnapshot(g, meta = {}) {
 
   const daily = (g.dailyQuests || []).map(quest);
   const days = buildDays(g);
+  const weekly = buildWeekly(g, cw);
 
   return {
     schema: SCHEMA,
@@ -257,6 +337,9 @@ function buildSecretarySnapshot(g, meta = {}) {
     previousDay: days.previousDay,
     nextDayPlan: days.nextDayPlan,
     recentDays: days.recentDays,
+    previousWeek: weekly.previousWeek,
+    weeklyHistory: weekly.weeklyHistory,
+    carriedFromPreviousWeek: weekly.carriedFromPreviousWeek,
     projects,
   };
 }
@@ -406,7 +489,6 @@ document.head.appendChild(gs);
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:#0d0f14;font-family:system-ui,-apple-system,sans-serif}
@@ -764,6 +846,38 @@ const SHOP = [{
 }];
 // Обмін мани на гривню
 const MANA_RATE = 10; // 10 мани = 1 грн (можна змінити)
+// ── Підсумок тижня для секретаря: зберігається при закритті тижня ДО скидання щоденного стану ──
+const WEEK_ARCHIVE_MAX = 8; // тримаємо останні 8 тижнів (ліміт розміру документа Firestore)
+function buildWeekArchiveEntry(p, note, score, carryIds, nowMs) {
+  const cw = p.currentWeek || 1;
+  const lite = q => ({ id: q.id, name: q.name, done: !!q.done, isMilestone: !!q.isMilestone, carried: !!(carryIds && carryIds.has(q.id)) });
+  const projects = {};
+  ["A", "B", "C", "D"].forEach(pid => {
+    const pr = (p.projects || {})[pid];
+    if (!pr) return;
+    const wk = (pr.weeks || [])[cw - 1] || {};
+    projects[pid] = { name: pr.name || "", milestone: wk.milestone || "", quests: (wk.quests || []).map(lite) };
+  });
+  const dq = p.dailyQuests || [];
+  const dLite = q => ({ id: q.id, name: q.name, projId: q.projId || null, done: !!q.done, isSosQuest: !!q.isSosQuest });
+  return {
+    sprintNum: p.sprintNum || 1,
+    week: cw,
+    closedAt: new Date(nowMs || Date.now()).toISOString(),
+    weekStartDate: p.weekStartDate || null,
+    score: { pct: score.pct, grade: score.grade, done: score.done, total: score.total, selfScore: score.selfScore },
+    // у weekReflections поле done перезаписується числом, тому текст «що вдалось» зберігаємо тут окремо
+    reflection: { mood: (note.mood || "").trim(), wentWell: (note.done || "").trim(), improve: (note.improve || "").trim(), overall: (note.overall || "").trim() },
+    projects: projects,
+    closingDay: {
+      date: p.lastActiveDate || null,
+      energy: p.energy ?? null,
+      mode: p.mode ?? null,
+      eveningReflection: (p.eveningReflection || "").trim(),
+      tasks: dq.map(dLite)
+    }
+  };
+}
 const GRADE = p => {
   if (p >= 85) return {
     label: "🌟 Елітний",
@@ -2394,7 +2508,7 @@ function App() {
             } else {
               localStorage.setItem(SAVE_KEY, remote[SAVE_KEY]);
               localStorage.setItem(SAVE_KEY + "_ts", String(remote._updatedAt));
-              setG(s);
+              setG({ ...fresh(), ...s });
               console.log('Firebase: loaded newer data from cloud');
             }
           }
@@ -2420,7 +2534,7 @@ function App() {
           }
           localStorage.setItem(SAVE_KEY, remote[SAVE_KEY]);
           localStorage.setItem(SAVE_KEY + "_ts", String(remote._updatedAt));
-          setG(s);
+          setG({ ...fresh(), ...s });
           console.log('Firebase: synced from another device, ts=' + remote._updatedAt);
         } catch (e) {
           console.warn('Firebase sync error:', e);
@@ -4679,8 +4793,11 @@ function App() {
         projId: proj.id,
         carriedFrom: "S" + (p.sprintNum || 1)
       })))] : p.carryoverPool || [];
+      const weekEntry = buildWeekArchiveEntry(p, noteSnapshot, { pct, grade: gr.key, done: revDone, total: revTotal, selfScore: weekScore }, carryIds, Date.now());
+      const newWeekArchive = [...(p.weekArchive || []).filter(e => !(e.sprintNum === weekEntry.sprintNum && e.week === weekEntry.week)), weekEntry].slice(-WEEK_ARCHIVE_MAX);
       return {
         ...p,
+        weekArchive: newWeekArchive,
         projects: pr,
         weekReflections: wr,
         mana: Math.max(0, p.mana + gr.bonus),
@@ -18192,7 +18309,20 @@ function App() {
     }
   }, "Ритуал не було виконано вчора")));
 }
-ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App));
+class OdysseyBoundary extends React.Component {
+  constructor(p){super(p);this.state={err:null};}
+  static getDerivedStateFromError(err){return {err};}
+  componentDidCatch(err,info){ try{window.__odysseyShowErr&&window.__odysseyShowErr('RENDER: '+(err&&err.stack||err));}catch(e){} }
+  render(){
+    if(this.state.err){
+      return React.createElement("div",{style:{padding:20,color:"#f0ece4",fontFamily:"system-ui",maxWidth:500,margin:"0 auto"}},
+        React.createElement("div",{style:{fontSize:18,marginBottom:10}},"Помилка в застосунку"),
+        React.createElement("pre",{style:{whiteSpace:"pre-wrap",fontSize:12,color:"#ffb4b4"}},String(this.state.err&&this.state.err.stack||this.state.err)));
+    }
+    return this.props.children;
+  }
+}
+ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(OdysseyBoundary,null,React.createElement(App)));
 </script>
 </body>
 </html>
